@@ -6,17 +6,22 @@ códigos de saída ou os nomes de comandos do CLI.
 
 ## Sprint 0 — Fundação do repositório
 
-### D-01 — Validação em Python 3.14 em vez de 3.12 (pendente)
+### D-01 — Interpretador Python 3.12 local ao workspace (`.python/`)
 
-- **Referência:** DoD da Sprint 0 ("`pip install -e .[dev]` conclui em Python 3.12 no Windows").
-- **Desvio:** a máquina de desenvolvimento tem apenas o Python 3.14.3. A instalação
-  `pip install -e .[dev]`, o `pytest`, o `ruff` e o `mypy` foram validados em um `.venv` com
-  Python 3.14.3. A validação em 3.12 continua pendente.
-- **Justificativa:** o pacote declara `python_requires=">=3.12"`, e todas as dependências
-  instalaram a partir de wheels em 3.14. O `mypy` já verifica o código com
-  `python_version = "3.12"`.
-- **Ação:** repetir a instalação e a suíte em um `.venv` com Python 3.12 assim que houver um
-  interpretador 3.12 disponível, e marcar o item do DoD.
+- **Referência:** DoD da Sprint 0 ("`pip install -e .[dev]` conclui em Python 3.12 no Windows") e
+  seção 8.31 (`.gitignore`).
+- **Desvio:** a máquina de desenvolvimento tinha apenas o Python 3.14 instalado globalmente. Para
+  não alterar a instalação global, o CPython 3.12.16 foi baixado com
+  `uv python install 3.12 --install-dir .python --no-bin --no-registry`, sem atalhos no `PATH`
+  nem registro no Windows. O `.venv` do workspace foi criado a partir desse interpretador. A
+  entrada `.python/` foi adicionada ao `.gitignore`.
+- **Justificativa:** o PRD exige validação em Python 3.12, e não havia interpretador 3.12 na
+  máquina.
+- **Resultado:** `pip install -e .[dev]`, `ruff check .`, `ruff format --check .`, `mypy` e
+  `pytest` (48 testes) passam em Python 3.12.16. A mesma validação também passou antes em
+  Python 3.14.3.
+- **Observação:** o `.venv` depende de `.python/`. Se a pasta for removida, recrie o ambiente com
+  um Python 3.12+ disponível.
 
 ### D-02 — `PRD.md` excluído do ruff
 

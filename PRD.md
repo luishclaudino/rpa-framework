@@ -4883,7 +4883,7 @@ flowchart LR
   - [x] Criar `tests/unit/test_architecture.py`.
 - **Entregáveis:** pacote instalável com `pip install -e .[dev]`; comando `rpa3003` registrado (pode falhar por falta de implementação).
 - **DoD da sprint:**
-  - [ ] `pip install -e .[dev]` conclui em Python 3.12 no Windows. *(validado apenas em Python 3.14.3; pendente em 3.12 — `docs/DESVIOS.md`, D-01)*
+  - [x] `pip install -e .[dev]` conclui em Python 3.12 no Windows. *(Python 3.12.16 local em `.python/` — `docs/DESVIOS.md`, D-01)*
   - [x] `pytest` executa (zero ou mais testes) sem erro de coleta.
   - [x] `ruff check .` e `mypy` sem erros sobre o esqueleto.
 
