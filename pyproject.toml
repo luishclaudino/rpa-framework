@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not integration and not gui and not browser'"
+timeout = 120
+markers = [
+    "unit: teste unitário sem I/O externo",
+    "integration: requer serviço externo (PostgreSQL, Denodo, Vault, SMTP/IMAP)",
+    "e2e: fluxo ponta a ponta CLI → projeto",
+    "windows: requer Windows",
+    "gui: requer sessão de desktop interativa",
+    "browser: requer navegador instalado",
+]
+
+[tool.coverage.run]
+source = ["rpa_3003"]
+branch = true
+omit = ["rpa_3003/templates/example/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@abstractmethod", "if __name__ == .__main__.:"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["PRD.md"]  # blocos de código do PRD são contratos condensados (docs/DESVIOS.md)
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C90", "SIM", "RUF", "ANN", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN"]
+"rpa_3003/cli.py" = ["S603"]              # subprocess com lista de argumentos controlada, sem shell
+"rpa_3003/core/vault.py" = ["S105", "S107"]  # nomes de chave "password"/"token", não valores
+"projects/**/global_vars.py" = ["S106"]      # vault_secret_path é caminho no Vault, não segredo
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["rpa_3003"]
+known-local-folder = ["global_vars", "workflows"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+files = ["rpa_3003"]

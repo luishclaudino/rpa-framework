@@ -1,0 +1,23 @@
+loguru>=0.7.2,<1.0
+selenium>=4.25,<5.0
+pydantic>=2.8,<3.0
+pydantic-settings>=2.4,<3.0
+hvac>=2.3,<3.0
+filelock>=3.15,<4.0
+psutil>=6.0,<8.0
+cryptography>=43.0
+psycopg2-binary>=2.9.9,<3.0
+duckdb>=1.1,<2.0
+holidays>=0.58,<1.0
+tzdata>=2024.1
+Pillow>=10.4
+opencv-python-headless>=4.10,<5.0
+numpy>=1.26
+mss>=9.0
+pyautogui>=0.9.54
+pywinauto>=0.6.8; sys_platform == "win32"
+pywin32>=306; sys_platform == "win32"
+pyperclip>=1.9
+pypdf>=5.0
+pdfplumber>=0.11
+reportlab>=4.2

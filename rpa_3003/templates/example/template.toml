@@ -1,0 +1,4 @@
+name = "example"
+description = "Projeto RPA padrão: workflows dev/prd, Vault, logging e exemplo de processamento de CSV"
+version = "1.0.0"
+ensure_dirs = ["logs", "data", "data/input", "data/output", "data/images"]
