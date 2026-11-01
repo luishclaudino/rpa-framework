@@ -5044,7 +5044,7 @@ flowchart LR
   - [x] `utils/pdf_utils.py` (8.18) + testes.
 - **Requisitos cobertos:** RF-043 a RF-047, RNF-010 (bancos somente leitura).
 - **DoD da sprint:**
-  - [x] DoD global; cobertura de `rpa_3003/utils/*` ≥ 85%. *(98%; decisões de interpretação e o ponto de atenção D-06 em `docs/DESVIOS.md`, Sprint 3)*
+  - [x] DoD global; cobertura de `rpa_3003/utils/*` ≥ 85%. *(98%; decisões de interpretação e o desvio D-06 — `sslmode` padrão `prefer` — em `docs/DESVIOS.md`, Sprint 3)*
   - [x] Testes de bloqueio de escrita do RF-043 passando (validação de instruções e conexão somente leitura).
   - [ ] `test_denodo_live.py` executado ao menos uma vez contra o Denodo corporativo; resultado registrado, com a confirmação da equipe de dados de que o usuário do robô só tem privilégio de consulta (riscos R-11 e R-20). *(pendente: requer acesso ao Denodo corporativo e as variáveis `RPA3003_TEST_DENODO_*`)*
 

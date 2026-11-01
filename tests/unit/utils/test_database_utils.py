@@ -513,6 +513,16 @@ def test_postgres_connect_maps_config_and_sets_read_only_session(pg_connect: Mag
     assert PostgreSQLDatabase.paramstyle == "pyformat"
 
 
+@pytest.mark.parametrize("engine", ["postgresql", "denodo"])
+def test_sslmode_not_sent_by_default(pg_connect: MagicMock, engine: str) -> None:
+    """D-06: sem sslmode, o parâmetro não vai ao driver (libpq usa `prefer`); TLS verificado
+    só quando o chamador informa, por exemplo, sslmode="verify-full"."""
+    connect(pg_config(engine=engine))
+    assert "sslmode" not in pg_connect.call_args.kwargs
+    connect(pg_config(engine=engine, sslmode="verify-full"))
+    assert pg_connect.call_args.kwargs["sslmode"] == "verify-full"
+
+
 def test_postgres_queries_end_with_rollback_and_never_commit(pg_connect: MagicMock) -> None:
     """RF-043: cada consulta termina com rollback() e o framework nunca chama commit()."""
     connection = pg_connect.return_value

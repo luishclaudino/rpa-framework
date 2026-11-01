@@ -191,14 +191,16 @@ As regras de `tests/unit/test_architecture.py` não mudaram. Um caso novo verifi
 - **Referência:** RNF-009 ("TLS com verificação de certificado ativa por padrão em [...]
   PostgreSQL e Denodo") e contrato de `DatabaseConfig` (`sslmode: str | None = None`, "sslmode
   repassado").
-- **Situação:** o contrato foi mantido. Com `sslmode=None`, o parâmetro não é enviado ao
-  `psycopg2`, e o libpq usa o padrão `prefer`, que não verifica o certificado. Para cumprir o
-  RNF-009, o projeto deve informar `sslmode="verify-full"` (ou `verify-ca`).
-- **Motivo:** o contrato normativo da seção 8.15 define `None` como padrão. Forçar `verify-full`
-  impediria a conexão com servidores sem TLS, e as variáveis `RPA3003_TEST_PG_*` e
-  `RPA3003_TEST_DENODO_*` não incluem certificado.
-- **Pendência:** decidir se o padrão deve passar a ser `verify-full`. Isso altera o contrato da
-  seção 8.15.
+- **Desvio:** no PostgreSQL e no Denodo, a verificação de certificado não é ativada por padrão.
+  Com `sslmode=None` (padrão do contrato), o parâmetro não é enviado ao `psycopg2`, e o libpq
+  usa `prefer`: usa TLS quando o servidor oferece, sem verificar o certificado. A variável
+  `PGSSLMODE`, quando definida no ambiente, substitui esse padrão. Quem quiser verificar o
+  certificado informa `sslmode="verify-full"` (ou `verify-ca`) ao criar o `DatabaseConfig`.
+- **Decisão:** do responsável pelo projeto, em 01/11/2026. O contrato da seção 8.15 não muda.
+- **Justificativa:** exigir `verify-full` por padrão impediria a conexão com servidores sem TLS
+  ou sem certificado confiável na máquina do robô. As variáveis `RPA3003_TEST_PG_*` e
+  `RPA3003_TEST_DENODO_*` também não incluem certificado. O RNF-009 continua valendo para Vault,
+  SMTP e IMAP, que verificam o certificado por padrão.
 
 ### Testes de integração ainda não executados
 

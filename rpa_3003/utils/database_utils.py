@@ -129,7 +129,9 @@ class DatabaseConfig(BaseModel):
         password: Senha, registrada para mascaramento ao conectar.
         path: Arquivo do banco (SQLite; DuckDB, opcional).
         connect_timeout: Tempo limite de conexão em segundos (RNF-007).
-        sslmode: Modo SSL repassado ao `psycopg2`.
+        sslmode: Modo SSL repassado ao `psycopg2`. `None` não envia o parâmetro, e o libpq usa
+            `prefer` (TLS quando o servidor oferece, sem verificar o certificado). Para
+            verificar o certificado, informe `"verify-full"` (docs/DESVIOS.md, D-06).
         options: Parâmetros extras do driver; chaves de `RESERVED_OPTIONS` são proibidas.
     """
 
