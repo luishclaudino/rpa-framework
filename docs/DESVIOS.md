@@ -52,3 +52,55 @@ códigos de saída ou os nomes de comandos do CLI.
 - **Justificativa:** as variáveis `RPA3003_TEST_*` configuram os testes de integração
   (seção 12.4), não o framework. Se fossem removidas antes de cada teste, os testes de integração
   não conseguiriam ler os próprios parâmetros de conexão.
+
+## Sprint 1 — Core
+
+### D-05 — Dependências de `vault.py` e `workflow.py` em `test_architecture.py`
+
+- **Referência:** tabela de regras de dependência da seção 7.2 e contratos das seções 8.7 e 8.8.
+- **Desvio:** as regras de `tests/unit/test_architecture.py` passaram a aceitar `pydantic` em
+  `core/vault.py` e `loguru` em `core/workflow.py`.
+- **Justificativa:** a tabela da seção 7.2 não lista essas bibliotecas, mas os contratos
+  normativos exigem as duas. Em `vault.py`, `Credentials.password` é `pydantic.SecretStr`
+  (seção 8.7). Em `workflow.py`, o tipo `Logger` vem de `from loguru import Logger` sob
+  `TYPE_CHECKING` (seção 8.8 e RNF-003). O verificador analisa também imports sob
+  `TYPE_CHECKING`, por isso apontava os dois casos. As demais regras não mudaram, e dois casos
+  novos em `test_checker_accepts_allowed_imports` documentam a exceção.
+
+### Decisões de implementação (sem alteração de contrato)
+
+Pontos em que o PRD é omisso ou ambíguo. Nenhum altera assinatura pública, `LOG_FORMAT`, códigos
+de saída ou estrutura obrigatória.
+
+- **`get_logger()` sem `setup_logger()` prévio:** a configuração implícita registra somente no
+  console, em `INFO`, e não intercepta o módulo `logging`. Uma função de leitura não deve
+  substituir os handlers do logger raiz. `setup_logger()` continua interceptando por padrão
+  (RF-019).
+- **Campo `[user]`:** `setup_logger` e `get_logger(user=...)` removem espaços nas pontas e trocam
+  `[`, `]` e quebras de linha por `_` ou espaço. Usuário vazio é tratado como não informado.
+  Assim toda linha continua casando com a regex da seção 10.4 (OBJ-04).
+- **`setup_logger(retention_days < 1)`:** lança `ValueError`. O logger não pode importar
+  `exceptions` (seção 7.2), e `FrameworkSettings` já valida o mínimo de 1 dia.
+- **`RPA3003_ENV` inválido:** `load_settings()` propaga `InvalidEnvironmentError` (código `2`) em
+  vez de convertê-lo em `ConfigurationError` (código `3`), conforme o RF-010. `env`, `log_level` e
+  `auth_method` aceitam maiúsculas e espaços nas pontas (validadores privados).
+- **`validate_project_structure`:** além dos três steps padrão, verifica outros `step_*.py` de
+  cada ambiente (P-20) e procura importação de `workflows.dev` em todos os módulos de
+  `workflows/prd/` (RF-011). A ordem dos problemas da seção 8.5 vale para os steps padrão.
+- **`find_project`:** um projeto existe quando a pasta existe, mesmo sem `main.py`. Assim
+  `rpa3003 validate` informa `ausente: main.py` em vez de "projeto não encontrado". Nomes com
+  separador de caminho, `..`, pastas ocultas e backups `*.bak-*` nunca são aceitos.
+- **`list_projects`:** pasta de projetos inexistente lança `ConfigurationError` (código `3`),
+  comportamento que a seção 9.4.3 exige do comando `list`.
+- **`bootstrap`:** pasta de projeto inexistente lança `ProjectNotFoundError` (código `3`) antes
+  de `os.chdir`. `--user` em branco é tratado como não informado (RF-016).
+- **`WorkflowRunner`:** em `StepLoadError`, `RunResult.steps` fica vazio. Erro no construtor de um
+  step conta como falha do step, e o wrapup executa normalmente (RNF-006). `KeyboardInterrupt`
+  sempre define `ctx.error`, mesmo após falha anterior, para que o código de saída seja `130`.
+- **Vault:** além dos valores lidos, o `token`, o `secret_id`, a senha de autenticação e o token
+  emitido pelo login também são registrados para mascaramento (RNF-008). `is_available()` aceita
+  nós standby (`standby_ok`). Entradas do cache offline com timestamp no futuro são ignoradas.
+  Falha ao gravar o cache offline gera `WARNING` e não interrompe a leitura.
+- **Teste de rotação (RF-017):** a rotação do loguru usa a data de criação do arquivo, que o
+  sistema de arquivos grava com o relógio real. O teste alinha essa data ao relógio simulado
+  pelo `time-machine`, para não depender da data real da máquina.

@@ -81,7 +81,9 @@ class SourceModule:
     path: Path
 
 
-# Tabela da seção 7.2, complementada pelas dependências das seções 8.1 e 8.3.
+# Tabela da seção 7.2, complementada pelas dependências das seções 8.1, 8.3, 8.7 e 8.8:
+# `vault.py` usa `pydantic.SecretStr` em `Credentials` e `workflow.py` importa `loguru.Logger`
+# sob TYPE_CHECKING (RNF-003). Ver docs/DESVIOS.md, D-05.
 MODULE_RULES: Final[dict[str, LayerRule]] = {
     ROOT_PACKAGE: LayerRule(allowed=(VERSION, CONFIG, LOGGER), third_party=frozenset()),
     MAIN: LayerRule(allowed=(CLI,), third_party=frozenset()),
@@ -94,10 +96,11 @@ MODULE_RULES: Final[dict[str, LayerRule]] = {
     ),
     VAULT: LayerRule(
         allowed=(EXCEPTIONS, LOGGER, CONFIG),
-        third_party=frozenset({"hvac", "requests"}) | PYWIN32_MODULES,
+        third_party=frozenset({"hvac", "requests", "pydantic"}) | PYWIN32_MODULES,
     ),
     WORKFLOW: LayerRule(
-        allowed=(EXCEPTIONS, LOGGER, CONFIG, VERSION), third_party=frozenset({"filelock"})
+        allowed=(EXCEPTIONS, LOGGER, CONFIG, VERSION),
+        third_party=frozenset({"filelock", "loguru"}),
     ),
     TEMPLATES: LayerRule(
         allowed=(CORE, VERSION), denied=(WORKFLOW, VAULT), third_party=frozenset()
@@ -317,6 +320,12 @@ def test_checker_detects_violations(module_name: str, source: str, expected: lis
             "from rpa_3003.core import config\nif TYPE_CHECKING:\n    import requests\n",
         ),
         (CONFIG, "from . import exceptions\nfrom .logger import LogLevel\nimport pydantic\n"),
+        (VAULT, "from pydantic import SecretStr\n"),
+        (
+            WORKFLOW,
+            "from typing import TYPE_CHECKING\nimport filelock\n"
+            "if TYPE_CHECKING:\n    from loguru import Logger\n",
+        ),
         (CLI, "import psutil\nfrom rpa_3003.core.workflow import split_passthrough_args\n"),
         (ROOT_PACKAGE, "from rpa_3003._version import __version__\n"),
     ],

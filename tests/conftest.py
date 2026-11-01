@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Final
+from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
 ISOLATED_ENV_PREFIXES: Final[tuple[str, ...]] = ("RPA3003_", "VAULT_")
 # Configuração dos testes de integração (seção 12.4); não é configuração do framework.
@@ -45,6 +49,61 @@ def _isolate_framework_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
             monkeypatch.delenv(name, raising=False)
     yield
     _reset_framework_state()
+
+
+@pytest.fixture
+def no_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Substitui time.sleep por função que apenas registra as durações solicitadas."""
+    calls: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        calls.append(seconds)
+
+    monkeypatch.setattr(time, "sleep", fake_sleep)
+    return calls
+
+
+@pytest.fixture
+def projects_dir(tmp_path: Path) -> Path:
+    """Pasta `projects/` vazia dentro de `tmp_path`."""
+    path = tmp_path / "projects"
+    path.mkdir()
+    return path
+
+
+@pytest.fixture
+def read_log_lines() -> Callable[[Path], list[str]]:
+    """Função que chama logger.complete() e retorna as linhas de todos os *.log da pasta."""
+
+    def read(logs_dir: Path) -> list[str]:
+        from loguru import logger
+
+        logger.complete()
+        lines: list[str] = []
+        for log_file in sorted(logs_dir.glob("*.log")):
+            lines.extend(log_file.read_text(encoding="utf-8").splitlines())
+        return lines
+
+    return read
+
+
+@pytest.fixture
+def fake_hvac(mocker: MockerFixture) -> MagicMock:
+    """Substitui hvac.Client por MagicMock configurável (autenticação e leituras KV v2).
+
+    Retorna a classe simulada; o cliente criado pelo framework é ``fake_hvac.return_value``.
+    Por padrão o token é válido e toda leitura KV v2 retorna ``username``/``password``.
+    """
+    client_class: MagicMock = mocker.patch("hvac.Client")
+    client = client_class.return_value
+    client.is_authenticated.return_value = True
+    client.secrets.kv.v2.read_secret_version.return_value = {
+        "data": {"data": {"username": "robo.teste", "password": "S3nh@Forte"}}
+    }
+    client.secrets.kv.v1.read_secret.return_value = {
+        "data": {"username": "robo.teste", "password": "S3nh@Forte"}
+    }
+    return client_class
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

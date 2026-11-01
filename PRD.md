@@ -105,7 +105,7 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 5. CLI `rpa3003` com os comandos `create`, `run`, `list`, `templates` e `validate`.
 6. Template `example` completo e motor de renderização de templates.
 7. Separação de ambientes `dev`/`prd` por projeto, selecionável em tempo de execução.
-8. Testes unitários, de integração e ponta a ponta; README do framework.
+8. Testes unitários, de integração e ponta a ponta; README do framework e guia do desenvolvedor (`docs/GUIA_DO_DESENVOLVEDOR.md`).
 
 ### 3.2 Fora do escopo (explícito)
 
@@ -809,6 +809,14 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 - **Critérios de aceitação:**
   - [ ] Um desenvolvedor sem contato prévio com o framework executa o UC-01 seguindo apenas o README em ≤ 15 min.
 
+#### RNF-019 — Documentação para desenvolvedores do framework
+- **Descrição:** O workspace DEVE conter `docs/GUIA_DO_DESENVOLVEDOR.md` (seção 8.33), que explique de forma simples e objetiva como o framework está organizado e como modificá-lo com segurança: arquitetura e regras de dependência, ciclo de execução, convenções de código, pontos de extensão, testes e fluxo de contribuição. O README (RNF-018) continua sendo a referência de uso; o guia aponta para ele em vez de repetir seu conteúdo.
+- **Critérios de aceitação:**
+  - [ ] O guia contém as seções obrigatórias da seção 8.33, na ordem, e o README aponta para ele na seção `Visão geral`.
+  - [ ] Cada ponto de extensão da seção 7.5.4 tem um roteiro com os arquivos a criar ou alterar, um exemplo de código e o teste correspondente.
+  - [ ] Os comandos e exemplos de código do guia executam sem erro no workspace da versão 1.0.0, e os links relativos apontam para arquivos existentes.
+  - [ ] Um desenvolvedor sem contato prévio com o framework, seguindo apenas o guia, implementa uma das extensões do UC-05 (novo navegador ou novo banco de dados) com teste unitário e os itens 1 a 3 do gate de qualidade (seção 12.10) aprovados em ≤ 60 min.
+
 ---
 
 ## 7. Arquitetura e Decisões Técnicas
@@ -871,6 +879,9 @@ rpa-framework/
 ├── projects/                          # Projetos RPA
 │   └── .gitkeep                       # (adicional) Mantém a pasta versionada
 ├── tests/                             # Testes (estrutura detalhada na seção 12.3)
+├── docs/                              # (adicional) Documentação para desenvolvedores
+│   ├── DESVIOS.md                     # (adicional) Desvios técnicos em relação ao PRD
+│   └── GUIA_DO_DESENVOLVEDOR.md       # (adicional) Como entender e modificar o framework
 ├── .gitignore                         # (adicional)
 ├── MANIFEST.in                        # (adicional) Inclui templates no sdist
 ├── pyproject.toml                     # (adicional) build-system e configuração de ferramentas
@@ -926,6 +937,8 @@ projects/
 | `MANIFEST.in` | Garante templates no pacote fonte (sdist). |
 | `pyproject.toml` | `build-system` (PEP 517/518) e configuração de pytest, coverage, ruff e mypy; não contém a tabela `[project]`, pois os metadados ficam em `setup.py`. |
 | `requirements-dev.txt` | Separa ferramentas de teste e qualidade das dependências de runtime. |
+| `docs/DESVIOS.md` | Registro dos desvios técnicos inevitáveis em relação a este PRD (seção 13.1, instrução 7). |
+| `docs/GUIA_DO_DESENVOLVEDOR.md` | Explica arquitetura, convenções, pontos de extensão, testes e fluxo de contribuição para quem vai modificar o framework (RNF-019); o README fica restrito ao uso. |
 
 ### 7.2 Camadas e regras de dependência
 
@@ -3765,6 +3778,7 @@ projects/.*.tmp-*/
   14. `Agendamento` — exemplo de tarefa no Agendador do Windows chamando `rpa3003 run <nome> --env prd --timeout <s>`.
   15. `Testes` — comandos da seção 12.9.
   16. `Solução de problemas` — tabela erro → causa → ação, cobrindo os riscos da seção 14.
+- A seção `Visão geral` DEVE apontar para `docs/GUIA_DO_DESENVOLVEDOR.md` (seção 8.33) como referência para quem vai modificar o framework.
 - **Exemplo de uso (trecho do início rápido):**
 
 ```python
@@ -3773,6 +3787,62 @@ from rpa_3003.cli import main
 
 assert main(["create", "meu_projeto"]) == 0
 assert main(["run", "meu_projeto", "--env", "dev"]) == 0
+```
+
+### 8.33 `docs/GUIA_DO_DESENVOLVEDOR.md` (adicional)
+
+- **Responsabilidade:** documentação para quem vai entender, manter e estender o framework (RNF-019). Complementa o README (seção 8.32), que cobre o uso.
+- **Dependências:** README e este PRD, referenciados por link.
+- **Estrutura obrigatória (títulos de nível 2, nesta ordem):**
+  1. `Como esta documentação está organizada` — papel do README (usar o framework), deste guia (entender e modificar), do `PRD.md` (especificação normativa) e de `docs/DESVIOS.md` (desvios registrados).
+  2. `Ambiente de desenvolvimento` — `.venv` com Python 3.12+, `pip install -e .[dev]` e verificação com os itens 1 a 3 do gate de qualidade (seção 12.10).
+  3. `Mapa do repositório` — árvore da seção 7.1 com uma linha por arquivo dizendo o que ele faz.
+  4. `Arquitetura` — as quatro camadas, diagrama simplificado da seção 7.2, tabela de regras de dependência e como `tests/unit/test_architecture.py` as verifica.
+  5. `Ciclo de uma execução` — caminho de `rpa3003 run` até o código de saída (seção 7.5.3), indicando o arquivo e a função responsáveis por cada etapa.
+  6. `Convenções de código` — seção 7.7 e RNF-012, RNF-016 e RNF-017 resumidos em uma lista de regras, cada uma com um exemplo curto de uso correto e incorreto.
+  7. `Como estender` — um roteiro por ponto de extensão da seção 7.5.4 (navegador, banco de dados, provedor de segredos, canal de e-mail, template e utilitário), com arquivos a criar ou alterar, exemplo de código mínimo, teste a escrever e comando de verificação.
+  8. `Como escrever testes` — onde fica cada tipo de teste (12.3), marcadores (12.4), fixtures compartilhadas (12.5), isolamento de dependências externas (12.6) e limites de cobertura (12.8).
+  9. `Fluxo de contribuição` — checklist antes de entregar uma mudança: DoD global (13.2), gate de qualidade (12.10), registro em `docs/DESVIOS.md`, atualização do README e deste guia, versão em `rpa_3003/_version.py` (P-01) e o que nunca muda (`LOG_FORMAT`, estrutura obrigatória de diretórios, códigos de saída e nomes de comandos do CLI).
+  10. `Problemas comuns no desenvolvimento` — tabela erro → causa → ação (ex.: falha em `test_architecture.py`, dependência pesada importada no nível do módulo, teste pulado fora do Windows, `ruff format` alterando docstrings).
+- **Regras de redação:**
+  - pt-BR, frases curtas e voz ativa; termos conforme o glossário (seção 15).
+  - Cada seção começa com até três frases dizendo o que o leitor vai entender ou fazer.
+  - Procedimentos em passos numerados, com comandos PowerShell copiáveis e o resultado esperado.
+  - Não repetir o README nem o PRD: resumir o necessário e apontar a seção de origem por link.
+  - Exemplos de código completos, tipados e coerentes com as assinaturas da seção 8.
+  - Leitura completa em até 30 minutos.
+- **Exemplo de uso (trecho da seção `Como estender` — novo navegador):**
+
+```python
+from selenium import webdriver
+from selenium.webdriver.remote.webdriver import WebDriver
+
+from rpa_3003.bots.browser_selenium import BrowserFactory, BrowserOptions
+
+
+class FirefoxDriverBuilder:
+    """Cria o driver do Firefox a partir das opções comuns do framework."""
+
+    def build(self, options: BrowserOptions) -> WebDriver:
+        firefox_options = webdriver.FirefoxOptions()
+        if options.headless:
+            firefox_options.add_argument("-headless")
+        return webdriver.Firefox(options=firefox_options)
+
+
+BrowserFactory.register("firefox", FirefoxDriverBuilder())  # Browser("firefox") passa a funcionar
+```
+
+```python
+from pytest_mock import MockerFixture
+
+
+def test_firefox_registrado_na_fabrica(mocker: MockerFixture) -> None:
+    """RF-033: navegador registrado é criado pela fábrica sem alterar a classe Browser."""
+    driver = mocker.MagicMock()
+    mocker.patch("selenium.webdriver.Firefox", return_value=driver)
+    BrowserFactory.register("firefox", FirefoxDriverBuilder(), overwrite=True)
+    assert BrowserFactory.create_driver("firefox", BrowserOptions()) is driver
 ```
 
 ---
@@ -4610,7 +4680,7 @@ RPA3003_LOG_LEVEL=INFO
 
 - **Pirâmide de testes:** maioria de testes unitários rápidos e determinísticos; testes de integração para serviços externos reais; poucos testes ponta a ponta cobrindo o fluxo CLI → projeto.
 - **Testes junto com o código:** cada módulo é entregue com seus testes unitários na mesma sprint (DoD da seção 13). A Sprint 7 consolida integração, E2E e cobertura.
-- **Critérios de aceitação como testes:** cada critério "Dado/Quando/Então" ou checklist das seções 5 e 6 DEVE ter ao menos um teste automatizado, nomeado com o ID do requisito no docstring (ex.: `"""RF-017: arquivo do dia anterior não é renomeado."""`), exceto os critérios explicitamente manuais (RNF-018, OBJ-03).
+- **Critérios de aceitação como testes:** cada critério "Dado/Quando/Então" ou checklist das seções 5 e 6 DEVE ter ao menos um teste automatizado, nomeado com o ID do requisito no docstring (ex.: `"""RF-017: arquivo do dia anterior não é renomeado."""`), exceto os critérios explicitamente manuais (RNF-018, RNF-019, OBJ-03).
 - **Determinismo:** sem dependência de rede, relógio real ou ordem de execução nos testes unitários; tempo simulado com `time-machine`; `time.sleep` substituído por fixture; arquivos gerados em `tmp_path`.
 - **Plataforma:** testes unitários executam em Windows e Linux; marcadores `windows`, `gui` e `browser` são pulados automaticamente fora do Windows por `conftest.py`.
 
@@ -4891,19 +4961,19 @@ flowchart LR
 
 - **Objetivo:** base de exceções, logging, configuração, Vault e workflow.
 - **Tarefas (nesta ordem):**
-  - [ ] `core/exceptions.py` (seção 8.6) + `test_exceptions.py`.
-  - [ ] `core/logger.py` (seções 8.4 e 10) + `test_logger.py`.
-  - [ ] `core/config.py` (seção 8.5) + `test_config.py`.
-  - [ ] `core/vault.py` (seção 8.7) + `test_vault.py`.
-  - [ ] `core/workflow.py` (seção 8.8) + `test_workflow.py` (usando projeto mínimo montado em `tmp_path` pelo próprio teste).
-  - [ ] `core/__init__.py` e `rpa_3003/__init__.py` (seções 8.1 e 8.3).
+  - [x] `core/exceptions.py` (seção 8.6) + `test_exceptions.py`.
+  - [x] `core/logger.py` (seções 8.4 e 10) + `test_logger.py`.
+  - [x] `core/config.py` (seção 8.5) + `test_config.py`.
+  - [x] `core/vault.py` (seção 8.7) + `test_vault.py`.
+  - [x] `core/workflow.py` (seção 8.8) + `test_workflow.py` (usando projeto mínimo montado em `tmp_path` pelo próprio teste).
+  - [x] `core/__init__.py` e `rpa_3003/__init__.py` (seções 8.1 e 8.3).
 - **Entregáveis:** núcleo completo e testado.
 - **Requisitos cobertos:** RF-001 a RF-025 (exceto partes de RF-025 que dependem do template), RNF-003, RNF-005, RNF-008.
 - **DoD da sprint:**
-  - [ ] DoD global.
-  - [ ] Cobertura de `rpa_3003/core/*` ≥ 90%.
-  - [ ] Teste de formato de log (RF-015) e de rotação (RF-017) passando.
-  - [ ] Teste de wrapup sempre executado com falha em cada step (RF-006) passando.
+  - [x] DoD global. *(regras de `test_architecture.py` ajustadas para `vault.py` e `workflow.py` — `docs/DESVIOS.md`, D-05)*
+  - [x] Cobertura de `rpa_3003/core/*` ≥ 90%. *(99%)*
+  - [x] Teste de formato de log (RF-015) e de rotação (RF-017) passando.
+  - [x] Teste de wrapup sempre executado com falha em cada step (RF-006) passando.
 
 #### Sprint 2 — Utils I (sem serviços externos)
 
@@ -4982,12 +5052,15 @@ flowchart LR
   - [ ] `test_vault_live.py` contra Vault de homologação (AppRole e KV v2).
   - [ ] Medições de desempenho do RNF-004 e OBJ-10 registradas no README.
   - [ ] `README.md` com a estrutura obrigatória da seção 8.32.
+  - [ ] `docs/GUIA_DO_DESENVOLVEDOR.md` com a estrutura obrigatória da seção 8.33 (RNF-019), escrito depois do README e conferido contra o código final.
   - [ ] Execução completa do gate de qualidade (seção 12.10).
   - [ ] Validação manual do UC-01 por um desenvolvedor que não participou da implementação (OBJ-03, RNF-018).
+  - [ ] Validação manual do guia: um desenvolvedor que não participou da implementação implementa uma extensão do UC-05 seguindo apenas o guia (RNF-019).
 - **Entregáveis:** versão `1.0.0` pronta para uso pela equipe.
 - **DoD da sprint:**
   - [ ] Todos os itens da seção 12.10 atendidos.
   - [ ] Todos os RF com prioridade Must e Should implementados e testados; RF Could implementados ou registrados em `docs/DESVIOS.md`.
+  - [ ] Critérios de aceitação do RNF-018 e do RNF-019 verificados.
   - [ ] Checklist da seção 13.5 completo.
 
 ### 13.4 Matriz sprint × requisitos
@@ -5001,7 +5074,7 @@ flowchart LR
 | 4 | RF-026 a RF-036 | RNF-006, RNF-017 |
 | 5 | RF-048 a RF-052, RF-054, RF-055 | RNF-004 |
 | 6 | RF-053 | RNF-002 |
-| 7 | Validação de todos | RNF-013, RNF-018, metas OBJ-01 a OBJ-10 |
+| 7 | Validação de todos | RNF-013, RNF-018, RNF-019, metas OBJ-01 a OBJ-10 |
 
 ### 13.5 Checklist final de aceitação do framework
 
@@ -5011,6 +5084,7 @@ flowchart LR
 - [ ] `rpa3003 create` e `rpa3003 run --env dev|prd` funcionam conforme a seção 9.
 - [ ] Credenciais de produção vêm exclusivamente do Vault.
 - [ ] Gate de qualidade (12.10) aprovado no Windows.
+- [ ] README (8.32) e guia do desenvolvedor (8.33) validados por desenvolvedores que não participaram da implementação.
 
 ---
 
