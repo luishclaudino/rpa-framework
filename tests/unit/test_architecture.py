@@ -1,13 +1,15 @@
 """Regras de arquitetura do pacote rpa_3003 verificadas por análise estática de imports.
 
 Cobre as regras de dependência entre camadas (seção 7.2), a exclusividade de ``import logging``
-em ``core/logger.py`` (RF-014) e o isolamento de dependências pesadas (RNF-017).
+em ``core/logger.py`` (RF-014), o isolamento de dependências pesadas (RNF-017) e a portabilidade
+de caminhos (RNF-016).
 """
 
 from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -38,6 +40,9 @@ UTILS: Final[str] = "rpa_3003.utils"
 BOTS: Final[str] = "rpa_3003.bots"
 TEMPLATES: Final[str] = "rpa_3003.templates"
 
+# Barra invertida entre caracteres de nome de caminho (ex.: "C:\\rpa\\saida"); não casa com
+# conjuntos de caracteres como '<>:"/\\|?*' nem com classes de regex como "[/\\]".
+BACKSLASH_SEPARATOR: Final[re.Pattern[str]] = re.compile(r"[\w.$%~-]\\[\w.$%~-]")
 PYWIN32_MODULES: Final[frozenset[str]] = frozenset(
     {"pywintypes", "win32api", "win32con", "win32crypt"}
 )
@@ -255,6 +260,72 @@ def test_package_imports_do_not_load_heavy_modules() -> None:
         name for name in loaded if any(_is_within(name, heavy) for heavy in HEAVY_MODULES)
     )
     assert heavy == []
+
+
+def _docstring_nodes(tree: ast.Module) -> set[int]:
+    """Identificadores (`id`) dos nós de docstring de módulo, classes e funções."""
+    owners = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    found: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, owners) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                found.add(id(first.value))
+    return found
+
+
+def _path_portability_violations(module: SourceModule) -> list[str]:
+    """`os.path.join` e literais com `\\` usados como separador de caminho (RNF-016)."""
+    tree = ast.parse(module.path.read_text(encoding="utf-8"), filename=str(module.path))
+    docstrings = _docstring_nodes(tree)
+    found: list[str] = []
+    for node in ast.walk(tree):
+        is_join = (
+            isinstance(node, ast.Attribute)
+            and node.attr == "join"
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "path"
+            and isinstance(node.value.value, ast.Name)
+            and node.value.value.id == "os"
+        )
+        imports_join = (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "os.path"
+            and any(alias.name == "join" for alias in node.names)
+        )
+        if is_join or imports_join:
+            found.append(f"{module.name}:{node.lineno}: os.path.join")
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in docstrings
+            and BACKSLASH_SEPARATOR.search(node.value)
+        ):
+            found.append(f"{module.name}:{node.lineno}: {node.value!r}")
+    return found
+
+
+def test_paths_use_pathlib_without_hardcoded_separators() -> None:
+    """RNF-016: sem `os.path.join` nem literais com `\\` como separador de caminho."""
+    violations = [item for module in MODULES for item in _path_portability_violations(module)]
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("import os\nos.path.join('a', 'b')\n", 1),
+        ("from os.path import join\n", 1),
+        ("PATH = 'C:\\\\rpa\\\\saida'\n", 1),
+        ("CHARS = '<>:\"/\\\\|?*'\nPATTERN = r'[/\\\\]'\n", 0),
+        ('"""Exemplo: C:\\\\Automação RPA\\\\rpa-framework."""\n', 0),
+    ],
+)
+def test_path_portability_checker(tmp_path: Path, source: str, expected: int) -> None:
+    """RNF-016: o verificador aponta os.path.join e separadores fixos, não conjuntos."""
+    path = tmp_path / "amostra.py"
+    path.write_text(source, encoding="utf-8")
+    assert len(_path_portability_violations(SourceModule("amostra", path))) == expected
 
 
 def test_core_package_does_not_load_vault_or_workflow() -> None:

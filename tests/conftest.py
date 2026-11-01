@@ -72,6 +72,15 @@ def projects_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def sample_csv(tmp_path: Path) -> Path:
+    """CSV ';' em utf-8-sig com cabeçalho 'id;nome;valor' e 3 linhas acentuadas."""
+    path = tmp_path / "amostra.csv"
+    content = "id;nome;valor\r\n1;José;10,50\r\n2;Conceição;1.500,00\r\n3;Açaí Ltda;0,99\r\n"
+    path.write_bytes(content.encode("utf-8-sig"))
+    return path
+
+
+@pytest.fixture
 def read_log_lines() -> Callable[[Path], list[str]]:
     """Função que chama logger.complete() e retorna as linhas de todos os *.log da pasta."""
 

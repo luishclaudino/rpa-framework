@@ -4979,18 +4979,18 @@ flowchart LR
 
 - **Objetivo:** utilitários de arquivos e dados.
 - **Tarefas (nesta ordem):**
-  - [ ] `utils/__init__.py` (seção 8.9).
-  - [ ] `utils/filesystem_utils.py` (8.10) + testes.
-  - [ ] `utils/json_utils.py` (8.11) + testes.
-  - [ ] `utils/csv_utils.py` (8.19) + testes.
-  - [ ] `utils/archive_utils.py` (8.12) + testes.
-  - [ ] `utils/calendar_utils.py` (8.13) + testes.
-  - [ ] `utils/crypt_utils.py` (8.14) + testes.
+  - [x] `utils/__init__.py` (seção 8.9).
+  - [x] `utils/filesystem_utils.py` (8.10) + testes.
+  - [x] `utils/json_utils.py` (8.11) + testes.
+  - [x] `utils/csv_utils.py` (8.19) + testes.
+  - [x] `utils/archive_utils.py` (8.12) + testes.
+  - [x] `utils/calendar_utils.py` (8.13) + testes.
+  - [x] `utils/crypt_utils.py` (8.14) + testes.
 - **Requisitos cobertos:** RF-037 a RF-042, RNF-009, RNF-010, RNF-011, RNF-016.
 - **DoD da sprint:**
-  - [ ] DoD global.
-  - [ ] Testes de Zip Slip e TAR malicioso passando.
-  - [ ] Teste de leitura cp1252 sem informar codificação passando.
+  - [x] DoD global. *(cobertura de `rpa_3003/utils/*`: 97%; decisões de interpretação em `docs/DESVIOS.md`, Sprint 2)*
+  - [x] Testes de Zip Slip e TAR malicioso passando.
+  - [x] Teste de leitura cp1252 sem informar codificação passando.
 
 #### Sprint 3 — Utils II (integrações)
 

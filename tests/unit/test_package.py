@@ -1,7 +1,10 @@
-"""Testes da API exportada por `rpa_3003` e `rpa_3003.core` (seções 8.1 e 8.3)."""
+"""Testes da API exportada por `rpa_3003`, `rpa_3003.core` e `rpa_3003.utils` (seções 8.1, 8.3 e
+8.9)."""
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,6 +44,35 @@ def test_core_package_exports() -> None:
     assert sorted(rpa_3003.core.__all__) == sorted(expected)
     for name, value in expected.items():
         assert getattr(rpa_3003.core, name) is value
+
+
+def test_utils_package_declares_modules_without_importing_them() -> None:
+    """Seção 8.9 e RNF-017: rpa_3003.utils lista os módulos em __all__ sem importá-los."""
+    import rpa_3003.utils
+
+    expected = [
+        "archive_utils",
+        "calendar_utils",
+        "crypt_utils",
+        "csv_utils",
+        "database_utils",
+        "email_utils",
+        "filesystem_utils",
+        "images_utils",
+        "json_utils",
+        "pdf_utils",
+    ]
+    assert rpa_3003.utils.__all__ == expected
+    package_dir = Path(rpa_3003.utils.__file__).parent
+    assert all((package_dir / f"{name}.py").is_file() for name in expected)
+    code = (
+        "import sys, rpa_3003.utils\n"
+        "print(sorted(m for m in sys.modules if m.startswith('rpa_3003.utils.')))"
+    )
+    completed = subprocess.run(  # noqa: S603 - interpretador atual com código fixo
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=60
+    )
+    assert completed.stdout.strip() == "[]"
 
 
 def test_root_package_usage_example(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

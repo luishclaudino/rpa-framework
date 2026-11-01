@@ -104,3 +104,78 @@ de saída ou estrutura obrigatória.
 - **Teste de rotação (RF-017):** a rotação do loguru usa a data de criação do arquivo, que o
   sistema de arquivos grava com o relógio real. O teste alinha essa data ao relógio simulado
   pelo `time-machine`, para não depender da data real da máquina.
+
+## Sprint 2 — Utils I
+
+Nenhum desvio de contrato nesta sprint. As regras de `tests/unit/test_architecture.py` não
+mudaram: a seção 7.2 já permite que um `utils` importe outro.
+
+### Decisões de implementação (sem alteração de contrato)
+
+- **Política única de hash (RNF-009):** `filesystem_utils.file_hash` e `crypt_utils.hash_text`
+  aceitam os mesmos algoritmos (`SECURE_HASH_ALGORITHMS` e, com `allow_insecure=True`,
+  `INSECURE_HASH_ALGORITHMS`). A regra fica no helper privado `crypt_utils._new_hash`, importado
+  dentro de `file_hash` para que importar `filesystem_utils` não carregue o `cryptography`.
+  Nomes de algoritmo aceitam maiúsculas e hífen (`"SHA3-256"`). HMAC aceita somente algoritmos
+  seguros, e chave HMAC vazia gera `CryptoError`.
+- **`filesystem_utils`:**
+  - `list_files` e `get_latest_file` lançam `FileOperationError` quando a pasta não existe.
+    `clean_dir` retorna `0` nesse caso (não há o que limpar), como `delete_*` com `missing_ok`.
+  - `wait_for_file` aceita pasta que ainda não existe (o navegador pode criá-la). Havendo mais
+    de um arquivo estável, retorna o de maior `st_mtime`.
+  - `is_file_locked` retorna `True` também para arquivo somente leitura, que não abre em `r+b`
+    (limitação do método exigido), e `False` para pastas.
+  - `copy_file`/`move_file` com `overwrite=True` removem o atributo somente leitura do destino.
+    `move_file` só recorre a `shutil.move` quando `os.replace` falha por volumes diferentes
+    (`EXDEV` / `ERROR_NOT_SAME_DEVICE`). Em outros erros não há cópia parcial.
+  - `safe_filename` avalia nomes reservados pela parte antes do primeiro ponto, como o Windows
+    (`"NUL .tar.gz"` vira `"_NUL .tar.gz"`). Nome vazio vira `"_"`, e `replacement` com
+    caractere inválido gera `ValueError`.
+  - `read_text` normaliza quebras de linha para `\n`, como o modo texto do Python. `read_lines`
+    separa linhas apenas em `\n`, `\r\n` e `\r`, preservando o form feed de relatórios legados.
+    A gravação usa modo texto, com a quebra de linha da plataforma.
+  - Gravação atômica: 3 tentativas no total, com 2 esperas de 0,5 s entre elas (RNF-007).
+- **`json_utils`:** o encoder mantém o `TypeError` padrão, mas `to_json`/`write_json` o
+  convertem em `DataFormatError` (também para referência circular). `SecretBytes` também é
+  mascarado. Conjuntos com tipos não comparáveis são ordenados por `repr`. `deep_merge` copia
+  os valores em profundidade, para que o resultado não compartilhe listas com as entradas.
+  `validate` registra os erros como `"campo: mensagem"`, sem os valores recebidos (RNF-008).
+  `ModelT` continua `TypeVar` público (contrato 8.11), com `noqa: UP047` na função `validate`.
+- **`csv_utils`:**
+  - Sem cabeçalho e sem `fieldnames`, as chaves `col_N` seguem a largura da primeira linha de
+    dados. Com `has_header=True`, `fieldnames` substitui o cabeçalho do arquivo.
+  - Linhas vazias antes do cabeçalho são sempre ignoradas. Linha só com espaços conta como
+    vazia em `skip_empty_rows`.
+  - `detect_delimiter` descarta a última linha incompleta quando a amostra é truncada. No
+    fallback, um empate fica com a primeira candidata.
+  - O `quoting: int` do contrato é convertido (`cast`) para o tipo literal exigido pelo
+    `csv.writer`.
+- **`archive_utils`:**
+  - Pastas (inclusive vazias) entram como entradas no ZIP/TAR, para que a ida e volta preserve
+    a estrutura.
+  - A criação grava em `<destino>.<uuid>.tmp` e renomeia com `os.replace`, então nunca fica
+    arquivo parcial. O destino dentro da pasta de origem não entra no próprio arquivo.
+  - Nomes internos duplicados geram `ArchiveError`, e origem inexistente gera
+    `FileOperationError`.
+  - `add_to_zip` cria o ZIP se ele não existir e recusa arquivo existente que não seja ZIP, pois
+    o modo `"a"` do `zipfile` anexaria um ZIP novo ao final dele.
+  - No TAR, `tarfile.data_filter` é aplicado a todos os membros antes de `extractall(...,
+    filter="data")`. Assim, "nada é extraído" vale também para links para fora do destino e
+    arquivos de dispositivo, e não só para nomes com `..`.
+- **`calendar_utils`:**
+  - A biblioteca `holidays` recebe `language` com o idioma padrão do país. Sem esse parâmetro,
+    os nomes dos feriados mudam conforme `LANG`/`LANGUAGE`.
+  - País, UF ou categoria sem suporte geram `ConfigurationError`.
+  - `datetime` com fuso é convertido para `DEFAULT_TZ` antes de virar data (`to_date` e dias
+    úteis).
+  - `date_range` inclui o fim. `business_days_between(inclusive=False)` exclui só `start`, o que
+    é coerente com `add_business_days`.
+  - Datas de `extra_holidays` recebem o nome `"Feriado adicional"`.
+  - O `holidays` só é importado no primeiro cálculo.
+- **`crypt_utils`:** senha vazia em `derive_key` gera `CryptoError`, e parâmetros numéricos não
+  positivos (`iterations`, `size`, `nbytes`) geram `ValueError`. `b64decode` ignora espaços e
+  quebras de linha e valida o restante estritamente. `repr(FernetCipher)` não mostra a chave. No
+  Windows sem `pywin32`, o DPAPI gera `CryptoError("DPAPI requer o pacote pywin32")`.
+- **Testes:** a fixture `sample_csv` (seção 12.5) entrou no `conftest.py`. O RNF-016 (sem
+  `os.path.join` nem `\` como separador em literais) passou a ser verificado em
+  `test_architecture.py`.
