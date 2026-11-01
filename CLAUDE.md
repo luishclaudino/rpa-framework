@@ -70,6 +70,9 @@ Pontos centrais do `core`:
   (`LOCALAPPDATA`, `ProgramFiles`).
 - Nunca altere `LOG_FORMAT`, a estrutura obrigatória de diretórios, os códigos de saída nem os
   nomes de comandos do CLI.
+- `database_utils` é somente leitura (P-24, seção 8.15, ADR-18): não existem `execute`,
+  `executemany` nem `transaction`, e o framework nunca chama `commit`. Não adicione escrita, DDL
+  ou controle de transação em nenhuma engine. O controle do robô vai para arquivos em `data/`.
 - Ao concluir tarefas, marque os checkboxes da sprint em `PRD.md` (seção 13.3) e registre desvios
   ou decisões de interpretação em `docs/DESVIOS.md`.
 - Templates (Sprint 6) usam `string.Template` em arquivos `.tpl`, `$$` para `$` literal e

@@ -4,12 +4,17 @@
 |---|---|
 | Documento | `PRD.md` — Product Requirements Document |
 | Produto | Pacote Python `rpa_3003` (distribuição `rpa-3003`, comando de terminal `rpa3003`) |
-| Versão do documento | 1.0.0 |
+| Versão do documento | 1.1.0 |
 | Versão alvo do framework | 1.0.0 |
-| Data | 31/10/2026 |
+| Data | 01/11/2026 |
 | Status | Aprovado para implementação |
 | Consumidor principal | Agente de IA de programação (agentic coding) |
 | Idioma | Português (Brasil) — identificadores de código em inglês |
+
+| Versão | Data | Alteração |
+|---|---|---|
+| 1.0.0 | 31/10/2026 | Versão aprovada para implementação. |
+| 1.1.0 | 01/11/2026 | Acesso a bancos de dados somente leitura, por segurança: premissa P-24, RF-043, seção 8.15, ADR-18 e risco R-20. `database_utils` deixa de ter `execute`, `executemany` e `transaction`. O UC-03 passa a registrar o controle de boletos processados em CSV. |
 
 > **Convenções deste documento.** As palavras **DEVE / OBRIGATÓRIO** indicam requisito mandatório; **NÃO DEVE / PROIBIDO** indicam proibição; **DEVERIA** indica recomendação forte; **PODE** indica opção. "Framework" designa o pacote `rpa_3003`. "Projeto" designa uma pasta RPA dentro de `projects/`. "Workspace" designa a raiz `rpa-framework/`. Todos os caminhos relativos partem do workspace, salvo indicação contrária. Trechos de código são **contratos de interface** (assinaturas e comportamento esperado), não implementação completa.
 
@@ -19,7 +24,7 @@
 
 ### 1.1 Propósito
 
-O `rpa_3003` é um framework interno, modular e extensível, em Python 3.12+, que padroniza a construção, a execução e a operação de automações RPA em estações e servidores Windows. Ele fornece, em um único pacote instalável: estrutura padronizada de projetos, orquestração de workflows em steps, separação de ambientes `dev`/`prd`, logging centralizado com `loguru`, integração com HashiCorp Vault, automação web multi-browser via Selenium (Chrome, Edge e Edge em modo IE), automação desktop por visão computacional, teclado, mouse e controle de janelas, além de utilitários prontos para arquivos, dados, bancos, e-mail, imagens e PDF.
+O `rpa_3003` é um framework interno, modular e extensível, em Python 3.12+, que padroniza a construção, a execução e a operação de automações RPA em estações e servidores Windows. Ele fornece, em um único pacote instalável: estrutura padronizada de projetos, orquestração de workflows em steps, separação de ambientes `dev`/`prd`, logging centralizado com `loguru`, integração com HashiCorp Vault, automação web multi-browser via Selenium (Chrome, Edge e Edge em modo IE), automação desktop por visão computacional, teclado, mouse e controle de janelas, além de utilitários prontos para arquivos, dados, bancos (somente leitura), e-mail, imagens e PDF.
 
 ### 1.2 Problema
 
@@ -74,6 +79,7 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 | P-21 | `stdout` e `stderr` são reconfigurados para UTF-8 com `errors="replace"` no bootstrap e no CLI. | Consoles Windows em cp850/cp1252 lançam `UnicodeEncodeError` com acentos. |
 | P-22 | Testes unitários executam também fora do Windows; testes de GUI, navegador e APIs exclusivas do Windows são marcados e pulados quando a plataforma não é Windows. | Permite pipeline rápido sem perder cobertura das funcionalidades Windows. |
 | P-23 | Arquivos complementares à arquitetura obrigatória são permitidos e estão listados na seção 7.1, cada um com justificativa. | O enunciado autoriza adições justificadas. |
+| P-24 | Bancos de dados são acessados somente para leitura. O framework não oferece inclusão, alteração, exclusão, DDL nem controle de transações. O usuário de banco de cada robô DEVE ter apenas privilégio de consulta (por exemplo, `SELECT`), concedido pela equipe responsável pelo banco. O que o robô precisar registrar (controle de itens processados, relatórios) vai para arquivos em `data/` do projeto ou para o sistema de destino, pela interface do próprio sistema. | Princípio do menor privilégio: um robô com credencial de escrita pode corromper dados corporativos por erro de código ou credencial vazada. A leitura atende aos casos de consulta e conciliação. |
 
 ---
 
@@ -100,7 +106,7 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 
 1. Pacote `rpa_3003` instalável com `pip install -e .`, exigindo Python 3.12+, com execução em Windows.
 2. Camada `core`: logger centralizado (`loguru`), configurações (`pydantic-settings`), exceções com códigos de saída, cliente Vault e motor de workflow.
-3. Camada `utils`: filesystem e TXT, JSON, CSV, TAR/ZIP, datas e dias úteis, criptografia, bancos (PostgreSQL, SQLite, DuckDB, Denodo), e-mail (SMTP, IMAP, Outlook), imagens e PDF.
+3. Camada `utils`: filesystem e TXT, JSON, CSV, TAR/ZIP, datas e dias úteis, criptografia, bancos em modo somente leitura (PostgreSQL, SQLite, DuckDB, Denodo; P-24), e-mail (SMTP, IMAP, Outlook), imagens e PDF.
 4. Camada `bots`: classe única `Browser` para Chrome, Edge e Edge em modo IE; classe `DesktopBot` para visão computacional, mouse, teclado, janelas e processos.
 5. CLI `rpa3003` com os comandos `create`, `run`, `list`, `templates` e `validate`.
 6. Template `example` completo e motor de renderização de templates.
@@ -120,6 +126,7 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 | SAP GUI Scripting, Citrix, emuladores de terminal 3270, automação mobile | Projetos podem integrar bibliotecas próprias |
 | Utilitário dedicado a planilhas Excel (`.xlsx`) | Projetos podem usar `openpyxl` diretamente |
 | Escrita, rotação de segredos e secrets engines dinâmicos no Vault | Responsabilidade da equipe de segurança |
+| Escrita em bancos de dados (`INSERT`, `UPDATE`, `DELETE`, `MERGE`), DDL e controle de transações | Registro em arquivos de `data/` (CSV ou JSON) ou na interface do sistema de destino; alteração de dados feita pela equipe responsável pelo sistema (P-24) |
 | Microsoft Graph e OAuth2 para e-mail | Ponto de extensão via `EmailSender` (seção 8.16) |
 | Empacotamento em executável (PyInstaller) e instalador MSI | Instalação via `pip` em ambiente virtual |
 | Promoção automatizada de código `dev` para `prd` | Processo manual documentado no README do projeto |
@@ -192,13 +199,13 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 
 #### UC-03 — Processamento de boletos recebidos por e-mail com lançamento em ERP desktop
 
-- **Ator:** robô agendado. **Pré-condições:** caixa IMAP acessível; ERP desktop instalado; imagens de referência em `data/images/` (`tela_login.png`, `botao_salvar.png`).
+- **Ator:** robô agendado. **Pré-condições:** caixa IMAP acessível; ERP desktop instalado; imagens de referência em `data/images/` (`tela_login.png`, `botao_salvar.png`); usuário do robô no PostgreSQL com privilégio somente de consulta ao cadastro de fornecedores (P-24).
 - **Fluxo principal:**
   1. `step_setup_env` busca e-mails não lidos dos últimos 2 dias com assunto contendo "Boleto" e baixa os anexos PDF para `data/input/`.
-  2. `step_setup_env` abre o banco SQLite de controle `data/controle.db` e cria a tabela de processados se não existir.
-  3. `step_execute_task`, para cada PDF: extrai o texto com `pdf_utils.extract_text`, obtém valor e vencimento com expressões regulares e valida as regras de negócio.
+  2. `step_setup_env` lê os boletos já processados em `data/output/processados.csv` com `csv_utils.read_csv` (arquivo inexistente equivale a controle vazio). Também consulta os fornecedores ativos no PostgreSQL com `database_utils.connect(...).fetch_all`, em modo somente leitura.
+  3. `step_execute_task`, para cada PDF ainda não processado: extrai o texto com `pdf_utils.extract_text`, obtém valor e vencimento com expressões regulares e valida as regras de negócio (inclusive se o fornecedor está cadastrado).
   4. `DesktopBot.start_application` abre o ERP; `wait_image("tela_login")` aguarda a tela; `type_text` digita credenciais (sensíveis mascaradas) e dados com acentuação; `click_image("botao_salvar")` confirma.
-  5. O registro é gravado no SQLite dentro de `transaction()`; o e-mail é marcado como lido.
+  5. O boleto é acrescentado a `data/output/processados.csv` com `csv_utils.write_csv(..., append=True)`; o e-mail é marcado como lido.
   6. `step_wrapup_execution` gera relatório CSV, compacta os PDFs processados com `archive_utils.create_zip` e envia o resumo por SMTP.
 - **Fluxos alternativos:**
   - A1 — Imagem não encontrada no tempo limite: `ImageNotFoundError` com screenshot da tela; código `1`.
@@ -224,8 +231,8 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
   1. Carlos cria `FirefoxDriverBuilder` implementando o protocolo `DriverBuilder` (`build(options) -> WebDriver`).
   2. Registra o builder com `BrowserFactory.register("firefox", FirefoxDriverBuilder())`.
   3. `Browser("firefox")` passa a funcionar sem nenhuma alteração na classe `Browser`.
-  4. Para MySQL, cria `MySQLDatabase(Database)` implementando `_connect`, `paramstyle` e `table_exists`, e registra com `register_engine("mysql", MySQLDatabase)`.
-  5. `create_database(DatabaseConfig(engine="mysql", ...))` retorna a nova implementação.
+  4. Para MySQL, cria `MySQLDatabase(Database)` implementando `_connect` (conexão em modo somente leitura, P-24), `paramstyle` e `table_exists`, e registra com `register_engine("mysql", MySQLDatabase)`.
+  5. `create_database(DatabaseConfig(engine="mysql", ...))` retorna a nova implementação, que herda da classe base a validação de instruções somente leitura.
 - **Requisitos relacionados:** RF-033, RF-043, RF-055.
 
 ---
@@ -238,7 +245,7 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
 |---|---|---|
 | 1 | Estrutura de Projetos Organizada | RF-001 a RF-009 |
 | 2 | Suporte Multi-Browser | RF-026 a RF-033 |
-| 3 | Utilitários Prontos (JSON, CSV, TXT, filesystem, TAR/ZIP, datas, criptografia, bancos, e-mail, imagens, PDF) | RF-037 a RF-047 (automação desktop: RF-034 a RF-036) |
+| 3 | Utilitários Prontos (JSON, CSV, TXT, filesystem, TAR/ZIP, datas, criptografia, bancos somente leitura, e-mail, imagens, PDF) | RF-037 a RF-047 (automação desktop: RF-034 a RF-036) |
 | 4 | Logging Centralizado | RF-014 a RF-019 |
 | 5 | Interface CLI | RF-048 a RF-052 |
 | 6 | Templates Prontos | RF-053 a RF-055 |
@@ -597,13 +604,16 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
   - [ ] `dpapi_unprotect(dpapi_protect(b"x")) == b"x"` (marcador `windows`).
   - [ ] `hmac_verify` usa comparação em tempo constante (`hmac.compare_digest`).
 
-#### RF-043 — Bancos de dados
+#### RF-043 — Bancos de dados (somente leitura)
 - **Prioridade:** Must
-- **Descrição:** `database_utils` DEVE oferecer interface única (`Database`) para PostgreSQL, SQLite, DuckDB e Denodo, com linhas como `dict`, consultas parametrizadas no paramstyle nativo de cada engine, transações, leitura em lotes e registro de novas engines via `register_engine`.
+- **Descrição:** `database_utils` DEVE oferecer acesso somente leitura (P-24) por interface única (`Database`) para PostgreSQL, SQLite, DuckDB e Denodo. Isso inclui linhas como `dict`, consultas parametrizadas no paramstyle nativo de cada engine, leitura em lotes e registro de novas engines via `register_engine`. O módulo NÃO DEVE oferecer escrita (`INSERT`, `UPDATE`, `DELETE`, `MERGE`), DDL nem controle de transações. Instruções de escrita DEVEM ser bloqueadas antes do envio ao banco e, quando o driver permitir, também pela conexão aberta em modo somente leitura (seção 8.15).
 - **Critérios de aceitação:**
-  - [ ] SQLite e DuckDB (testes unitários reais em arquivo temporário): `execute`, `fetch_all`, `fetch_one`, `fetch_scalar`, `iter_rows` e `transaction` com rollback em exceção.
-  - [ ] PostgreSQL e Denodo (marcador `integration`, DSN por variável de ambiente): `fetch_all("SELECT 1 AS n")` retorna `[{"n": 1}]`.
-  - [ ] `create_database(DatabaseConfig(engine="postgresql"))` sem `host` lança `ConfigurationError`.
+  - [ ] SQLite e DuckDB (testes unitários reais em arquivo temporário, populado pelo próprio teste com `sqlite3`/`duckdb`): `fetch_all`, `fetch_one`, `fetch_scalar`, `iter_rows` e `table_exists`.
+  - [ ] `INSERT`, `UPDATE`, `DELETE`, `CREATE TABLE`, `WITH ... DELETE ... RETURNING` e `SELECT 1; DROP TABLE t` lançam `DatabaseError` sem conectar nem chamar o driver, e o arquivo do banco permanece idêntico (mesmo hash).
+  - [ ] Com a validação de instruções desativada no teste, as conexões SQLite e DuckDB recusam escrita com `DatabaseError`. No PostgreSQL simulado, `set_session(readonly=True, autocommit=False)` é chamado e `commit` nunca é chamado.
+  - [ ] `Database` não expõe `execute`, `executemany` nem `transaction`, e `DatabaseConfig` não aceita campos fora do contrato.
+  - [ ] PostgreSQL e Denodo (marcador `integration`, DSN por variável de ambiente): `fetch_all("SELECT 1 AS n")` retorna `[{"n": 1}]`. No PostgreSQL, `CREATE TEMP TABLE` com a validação desativada falha com SQLSTATE `25006` (transação somente leitura).
+  - [ ] `create_database(DatabaseConfig(engine="postgresql"))` sem `host` e `create_database(DatabaseConfig(engine="sqlite"))` sem `path` lançam `ConfigurationError`.
   - [ ] `create_database(DatabaseConfig(engine="oracle"))` lança `ConfigurationError` listando as engines registradas.
 
 #### RF-044 — E-mail via SMTP e IMAP
@@ -763,10 +773,11 @@ As ambiguidades do enunciado foram resolvidas pelas premissas abaixo. O agente i
   - [ ] Os padrões de `VaultSettings.verify` e `SMTPEmailClient` mantêm verificação TLS.
 
 #### RNF-010 — Segurança: tratamento de entradas
-- **Descrição:** Proteção contra path traversal em ZIP e TAR; SQL sempre parametrizado; nenhum uso de `eval`, `exec`, `pickle` com dados externos ou `subprocess` com `shell=True`.
+- **Descrição:** Proteção contra path traversal em ZIP e TAR; SQL sempre parametrizado e restrito a consultas de leitura (P-24); nenhum uso de `eval`, `exec`, `pickle` com dados externos ou `subprocess` com `shell=True`.
 - **Critérios de aceitação:**
   - [ ] Regras `S` (flake8-bandit) do ruff habilitadas sem violações no pacote, exceto as exceções justificadas em `per-file-ignores` do `pyproject.toml` (seção 8.31).
   - [ ] Testes de Zip Slip e de TAR malicioso passam.
+  - [ ] Testes de bloqueio de escrita em banco de dados do RF-043 passam.
 
 #### RNF-011 — Codificação de caracteres
 - **Descrição:** UTF-8 em logs, JSON, templates e arquivos gerados; console reconfigurado para UTF-8 (P-21); leitura de TXT e CSV com fallback para cp1252.
@@ -847,7 +858,7 @@ rpa-framework/
 │   │   ├── archive_utils.py           # TAR e ZIP
 │   │   ├── calendar_utils.py          # Datas
 │   │   ├── crypt_utils.py             # Criptografia
-│   │   ├── database_utils.py          # PostgreSQL, SQLite, DuckDB, Denodo
+│   │   ├── database_utils.py          # PostgreSQL, SQLite, DuckDB, Denodo (somente leitura)
 │   │   ├── email_utils.py             # E-mails
 │   │   ├── images_utils.py            # Imagens
 │   │   ├── pdf_utils.py               # Leitura, criação e edição de PDFs
@@ -1012,7 +1023,7 @@ flowchart TB
 | `core/workflow.py` | Template Method (`BaseStep.execute`), Pipeline (`WorkflowRunner`), Context Object (`ExecutionContext`) | Ciclo de vida uniforme de steps com logging, retentativas e tratamento de erro em um único ponto. | Steps ficam acoplados a `BaseStep`; aceitável por ser o contrato do framework. |
 | `bots/browser_selenium.py` | Facade (`Browser`), Abstract Factory com registro (`BrowserFactory`), Strategy (`DriverBuilder` por navegador) | Uma API para todos os navegadores; novos navegadores entram por registro (Open/Closed). | A fachada não cobre todo o Selenium; a propriedade `driver` expõe o objeto nativo. |
 | `bots/desktop_bot.py` | Facade sobre pyautogui, pywinauto, OpenCV e mss | Esconde diferenças entre bibliotecas e problemas de DPI e Unicode. | Diversas dependências pesadas; mitigado por importação preguiçosa. |
-| `utils/database_utils.py` | Strategy (engines), Template Method (base `Database` com transação e conversão para `dict`), Factory com registro | Interface única para quatro engines e extensão para novas. | Paramstyle nativo por engine (não unificado) para evitar reescrita frágil de SQL. |
+| `utils/database_utils.py` | Strategy (engines), Template Method (base `Database` com validação somente leitura, encerramento da leitura e conversão para `dict`), Factory com registro | Interface única para quatro engines, extensão para novas e bloqueio de escrita centralizado na classe base (P-24). | Paramstyle nativo por engine (não unificado) para evitar reescrita frágil de SQL. A validação de instruções protege contra erros de programação, mas não substitui o privilégio somente leitura no banco. |
 | `utils/email_utils.py` | Strategy via `Protocol` (`EmailSender`, `EmailReader`) | SMTP, IMAP e Outlook intercambiáveis. | Outlook só funciona em sessão interativa. |
 | Demais `utils` | Módulos funcionais sem estado (Facade sobre a biblioteca padrão) | Simplicidade e testabilidade; não há estado a encapsular. | Sem polimorfismo; desnecessário nesses casos. |
 | `cli.py` | Command (um handler por subcomando) | Cada comando testável isoladamente via `main(argv)`. | `argparse` é menos ergonômico que bibliotecas externas, porém sem dependências. |
@@ -1092,6 +1103,7 @@ Esta seção resume o raciocínio que orientou o desenho: decisões e trade-offs
 | ADR-15 | `string.Template` com arquivos `.tpl` | Jinja2, cookiecutter | Sem dependência; substituição estrita detecta variáveis faltantes; `.tpl` impede import e coleta acidental. |
 | ADR-16 | `pypdf` + `pdfplumber` + `reportlab` para PDF | PyMuPDF | PyMuPDF é AGPL (restrição corporativa); a combinação escolhida é BSD/MIT e cobre leitura, edição e criação. |
 | ADR-17 | Lock de instância única com `filelock` | Arquivo PID manual | `filelock` usa `msvcrt.locking`; o sistema operacional libera o lock se o processo morrer, sem locks órfãos. |
+| ADR-18 | Acesso somente leitura a bancos de dados (P-24), sem `execute`, `executemany` e `transaction` | API completa com escrita e transações | Menor privilégio. São quatro camadas de proteção: privilégio de consulta no banco, conexão em modo somente leitura, API sem escrita e validação das instruções antes do envio. O robô registra o próprio controle em arquivos de `data/`. Trade-off: gravar em banco fica fora do escopo do framework (seção 3.2). |
 
 #### 7.5.2 Contratos de interface
 
@@ -1112,7 +1124,7 @@ CLI (`rpa3003 run`) → resolve diretório de projetos e projeto → valida estr
 | Extensão | Mecanismo | Alteração no framework |
 |---|---|---|
 | Novo navegador | Implementar `DriverBuilder` e chamar `BrowserFactory.register("nome", builder)` | Nenhuma |
-| Novo banco de dados | Subclasse de `Database` e `register_engine("nome", Classe)` | Nenhuma |
+| Novo banco de dados | Subclasse de `Database` com `_connect` em modo somente leitura e `register_engine("nome", Classe)`; a validação de instruções é herdada (P-24) | Nenhuma |
 | Novo provedor de segredos | Implementar `SecretProvider` e passar `VaultClient(provider=...)` | Nenhuma |
 | Novo canal de e-mail (ex.: Graph) | Implementar os protocolos `EmailSender`/`EmailReader` | Nenhuma |
 | Novo template | Nova pasta em `rpa_3003/templates/` com `template.toml` | Nenhuma (apenas adicionar arquivos) |
@@ -1789,7 +1801,7 @@ def exit_code_for(error: BaseException | None) -> ExitCode:
 | `DataFormatError` | `UtilsError` | 1 | JSON, CSV ou data inválidos |
 | `ArchiveError` | `UtilsError` | 1 | ZIP/TAR inválido ou inseguro |
 | `CryptoError` | `UtilsError` | 1 | Chave inválida, dado corrompido, algoritmo proibido |
-| `DatabaseError` | `UtilsError` | 1 | Conexão ou execução de SQL |
+| `DatabaseError` | `UtilsError` | 1 | Conexão, consulta SQL ou instrução bloqueada pelo acesso somente leitura |
 | `EmailError` | `UtilsError` | 1 | SMTP, IMAP ou Outlook |
 | `ImageProcessingError` | `UtilsError` | 1 | Pillow |
 | `PDFError` | `UtilsError` | 1 | pypdf, pdfplumber, reportlab |
@@ -2521,19 +2533,18 @@ assinatura: str = crypt_utils.hmac_sign(b"chave", "payload")
 
 ### 8.15 `rpa_3003/utils/database_utils.py`
 
-- **Responsabilidade:** acesso a PostgreSQL, SQLite, DuckDB e Denodo por interface única, com linhas como dicionários, transações e extensão por registro.
-- **Dependências:** `sqlite3`, `psycopg2` (importação preguiçosa), `duckdb` (importação preguiçosa), `pydantic`, `rpa_3003.core.exceptions`, `rpa_3003.core.logger`, `rpa_3003.core.vault.Credentials`.
+- **Responsabilidade:** acesso somente leitura (P-24) a PostgreSQL, SQLite, DuckDB e Denodo por interface única, com linhas como dicionários, leitura em lotes e extensão por registro. O módulo não oferece inclusão, alteração, exclusão, DDL nem controle de transações.
+- **Dependências:** `sqlite3`, `re`, `psycopg2` (importação preguiçosa), `duckdb` (importação preguiçosa), `pydantic`, `rpa_3003.core.exceptions`, `rpa_3003.core.logger`, `rpa_3003.core.vault.Credentials`.
 
 ```python
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from collections.abc import Iterator, Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
-from typing import Any, ClassVar, Self, TypeAlias
+from typing import Any, ClassVar, Final, Self, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
@@ -2541,6 +2552,16 @@ from rpa_3003.core.vault import Credentials
 
 Params: TypeAlias = Sequence[Any] | Mapping[str, Any] | None
 Row: TypeAlias = dict[str, Any]
+
+READ_ONLY_STATEMENTS: Final[frozenset[str]] = frozenset(
+    {"SELECT", "WITH", "VALUES", "TABLE", "SHOW", "DESCRIBE", "EXPLAIN"}
+)
+WRITE_KEYWORDS: Final[frozenset[str]] = frozenset(
+    {"INSERT", "UPDATE", "DELETE", "MERGE", "INTO", "CREATE", "ALTER", "DROP", "TRUNCATE", "EXECUTE"}
+)
+RESERVED_OPTIONS: Final[frozenset[str]] = frozenset(
+    {"autocommit", "readonly", "read_only", "access_mode", "mode", "uri", "dsn", "isolation_level"}
+)
 
 
 class DatabaseEngine(StrEnum):
@@ -2551,7 +2572,7 @@ class DatabaseEngine(StrEnum):
 
 
 class DatabaseConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
     engine: str
     host: str | None = None
     port: int | None = None
@@ -2559,7 +2580,6 @@ class DatabaseConfig(BaseModel):
     user: str | None = None
     password: SecretStr | None = None
     path: Path | None = None
-    read_only: bool = False
     connect_timeout: int = Field(default=10, ge=1)
     sslmode: str | None = None
     options: dict[str, Any] = Field(default_factory=dict)
@@ -2578,11 +2598,14 @@ class Database(ABC):
         ...
 
     def validate_config(self) -> None:
-        """Campos obrigatórios da engine ausentes → ConfigurationError."""
+        """Campos obrigatórios da engine ausentes ou chave de RESERVED_OPTIONS em options →
+        ConfigurationError."""
         ...
 
     @abstractmethod
-    def _connect(self) -> Any: ...
+    def _connect(self) -> Any:
+        """Abre a conexão do driver em modo somente leitura, sempre que o driver permitir."""
+        ...
 
     @abstractmethod
     def table_exists(self, table: str, schema: str | None = None) -> bool: ...
@@ -2594,14 +2617,10 @@ class Database(ABC):
     def __enter__(self) -> Self: ...
     def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None,
                  tb: TracebackType | None) -> None: ...
-    def execute(self, sql: str, params: Params = None) -> int: ...
-    def executemany(self, sql: str, seq_of_params: Iterable[Params]) -> int: ...
     def fetch_all(self, sql: str, params: Params = None) -> list[Row]: ...
     def fetch_one(self, sql: str, params: Params = None) -> Row | None: ...
     def fetch_scalar(self, sql: str, params: Params = None) -> Any: ...
     def iter_rows(self, sql: str, params: Params = None, *, batch_size: int = 1000) -> Iterator[Row]: ...
-    @contextmanager
-    def transaction(self) -> Iterator[Self]: ...
 
 
 class PostgreSQLDatabase(Database): ...
@@ -2618,39 +2637,62 @@ def connect(config: DatabaseConfig) -> Database: ...
 
 | Engine | Classe | Driver | `paramstyle` | Obrigatórios | Porta padrão | Regras específicas |
 |---|---|---|---|---|---|---|
-| `postgresql` | `PostgreSQLDatabase` | `psycopg2.connect` | `pyformat` (`%s`, `%(nome)s`) | `host`, `database`, `user` | 5432 | `RealDictCursor`; `autocommit=False`; `iter_rows` com cursor nomeado (server-side) dentro de transação; `sslmode` repassado |
-| `denodo` | `DenodoDatabase` | `psycopg2.connect` | `pyformat` | `host`, `database`, `user` | 9996 | `autocommit=True`; `transaction()` lança `DatabaseError("Transações não suportadas no Denodo")`; `iter_rows` com `fetchmany`; `table_exists` executa `SELECT * FROM <nome> WHERE 1 = 0` |
-| `sqlite` | `SQLiteDatabase` | `sqlite3.connect` | `qmark` (`?`, `:nome`) | nenhum (`path=None` → `:memory:`) | não se aplica | `row_factory=sqlite3.Row`; `PRAGMA foreign_keys = ON`; `read_only` via URI `file:<path>?mode=ro`; `timeout=connect_timeout` |
-| `duckdb` | `DuckDBDatabase` | `duckdb.connect` | `qmark` (`?`, `$nome`) | nenhum (`path=None` → `:memory:`) | não se aplica | linhas montadas a partir de `cursor.description`; `transaction()` usa `begin`/`commit`/`rollback` |
+| `postgresql` | `PostgreSQLDatabase` | `psycopg2.connect` | `pyformat` (`%s`, `%(nome)s`) | `host`, `database`, `user` | 5432 | `RealDictCursor`; `set_session(readonly=True, autocommit=False)`, de modo que cada transação comece com `BEGIN READ ONLY`; cada consulta termina com `rollback()` e o framework nunca chama `commit`; `iter_rows` com cursor nomeado (server-side) dentro da transação de leitura, encerrada com `rollback()` ao fim ou ao fechar o iterador; `sslmode` repassado |
+| `denodo` | `DenodoDatabase` | `psycopg2.connect` | `pyformat` | `host`, `database`, `user` | 9996 | `autocommit=True`; o Virtual DataPort não garante `BEGIN READ ONLY`, por isso o driver não aplica modo somente leitura e a proteção vem da validação de instruções e do usuário Denodo com privilégio só de consulta (P-24, R-11); `iter_rows` com `fetchmany`; `table_exists` executa `SELECT * FROM <nome> WHERE 1 = 0` |
+| `sqlite` | `SQLiteDatabase` | `sqlite3.connect` | `qmark` (`?`, `:nome`) | `path` (arquivo existente) | não se aplica | abertura sempre por URI `<Path(path).resolve().as_uri()>?mode=ro` com `uri=True`; `PRAGMA query_only = ON` executado pelo framework ao conectar; `row_factory=sqlite3.Row`; `timeout=connect_timeout`; arquivo inexistente → `DatabaseError` |
+| `duckdb` | `DuckDBDatabase` | `duckdb.connect` | `qmark` (`?`, `$nome`) | nenhum | não se aplica | com `path`: `duckdb.connect(str(path), read_only=True)` (arquivo inexistente → `DatabaseError`); `path=None`: banco em memória, sem tabelas próprias, para consultar arquivos com `read_csv` e `read_parquet`; linhas montadas a partir de `cursor.description` |
 
 - **Comportamento obrigatório:**
-  - `execute`/`executemany`: fora de `transaction()` fazem commit imediato (exceto engines em autocommit); retornam `rowcount` (`-1` normalizado para `0`).
-  - `transaction()`: commit ao final; rollback e relançamento em exceção; transações aninhadas reutilizam a externa (contador de profundidade).
+  - **Somente leitura em quatro camadas (P-24, ADR-18):**
+    1. Privilégio de consulta do usuário no banco, concedido pela equipe responsável.
+    2. Conexão em modo somente leitura, conforme a tabela.
+    3. API sem escrita: `Database` não define `execute`, `executemany` nem `transaction`, e o framework nunca chama `commit`.
+    4. Validação de instruções antes do envio ao driver.
+
+    A camada 4 protege contra erros de programação; a barreira de segurança são as camadas 1 e 2.
+  - **Validação de instruções:** a classe base a aplica em `fetch_all`, `fetch_one`, `fetch_scalar` e `iter_rows`, antes de conectar. Ela vale também para engines registradas por `register_engine`. Regras:
+    - Comentários (`--` e `/* */`), literais entre aspas simples (com `''` como escape) e identificadores entre aspas duplas são desconsiderados na análise.
+    - A primeira palavra (desconsiderando parênteses iniciais), sem diferenciar maiúsculas, DEVE estar em `READ_ONLY_STATEMENTS`.
+    - Nenhuma palavra de `WRITE_KEYWORDS` pode aparecer como palavra inteira no restante da instrução. Isso bloqueia, por exemplo, `WITH ... DELETE ... RETURNING`, `SELECT ... INTO`, `SELECT ... FOR UPDATE` e `EXPLAIN ANALYZE` de escrita. Um identificador igual a uma dessas palavras deve ser escrito entre aspas duplas.
+    - Apenas uma instrução: `;` só é aceito no final.
+    - São rejeitados literal ou comentário não fechado, literal terminado em `\` (interpretação ambígua entre dialetos) e dollar quoting (`$$`, `$tag$`).
+    - A rejeição lança `DatabaseError("Instrução SQL não permitida: acesso somente leitura", details={"engine": ..., "motivo": ..., "sql": ...})`, com os primeiros 200 caracteres do SQL, sem conectar e sem chamar o driver.
+  - `DatabaseConfig` não tem opção de escrita; campos fora do contrato geram `pydantic.ValidationError` (`extra="forbid"`). O modo de acesso é definido apenas pelo framework: chave de `RESERVED_OPTIONS` em `options`, sem diferenciar maiúsculas, gera `ConfigurationError` em `validate_config`. As demais chaves de `options` são repassadas ao driver.
   - `fetch_scalar`: primeira coluna da primeira linha, ou `None`.
-  - Uso sem `connect()` conecta automaticamente na primeira operação.
-  - Erros do driver viram `DatabaseError` com a engine e os primeiros 200 caracteres do SQL em `details`; valores de parâmetros nunca são registrados.
-  - Log `DEBUG`: `SQL executado | engine=<e> | linhas=<n> | duracao=<s>s`.
+  - Uso sem `connect()` conecta automaticamente na primeira consulta.
+  - Erros do driver viram `DatabaseError` com a engine, o SQLSTATE (quando disponível) e os primeiros 200 caracteres do SQL em `details`. Isso inclui a recusa de escrita pela conexão somente leitura, como o SQLSTATE `25006` do PostgreSQL ou `attempt to write a readonly database` do SQLite. Valores de parâmetros nunca são registrados.
+  - Log `DEBUG`: `Consulta executada | engine=<e> | linhas=<n> | duracao=<s>s`. Em `iter_rows`, a linha é registrada ao fim da iteração, com o total de linhas.
   - `table_exists`: nomes validados com `^[A-Za-z_][A-Za-z0-9_]*$` (inválido → `ValueError`); PostgreSQL e DuckDB consultam `information_schema.tables`; SQLite consulta `sqlite_master`.
   - `password` é registrado no mascaramento ao conectar.
   - `create_database`: engine normalizada para minúsculas; engine não registrada → `ConfigurationError` listando `available_engines()`; retorna instância não conectada. `connect(config)` retorna a instância já conectada.
-  - `register_engine`: nome duplicado sem `overwrite` → `ValueError`; as quatro engines nativas são registradas na importação do módulo.
+  - `register_engine`: nome duplicado sem `overwrite` → `ValueError`; as quatro engines nativas são registradas na importação do módulo. A nova classe DEVE abrir a conexão em modo somente leitura em `_connect` sempre que o driver permitir.
 - **Exemplo de uso:**
 
 ```python
+from datetime import date
+
 from rpa_3003.core.config import Environment
 from rpa_3003.core.vault import get_vault_client
+from rpa_3003.utils import csv_utils
 from rpa_3003.utils.database_utils import DatabaseConfig, connect
 
 cred = get_vault_client(Environment.PRD).get_credentials("rpa/conciliacao/prd/postgres")
 cfg = DatabaseConfig.from_credentials("postgresql", cred, host="pg.interno", database="financeiro")
 with connect(cfg) as db:
     pendentes = db.fetch_all("SELECT id, valor FROM titulos WHERE status = %s", ("PENDENTE",))
-    with db.transaction():
-        for titulo in pendentes:
-            db.execute("UPDATE titulos SET status = %s WHERE id = %s", ("PROCESSADO", titulo["id"]))
+    vencidos = db.fetch_scalar("SELECT count(*) FROM titulos WHERE vencimento < %s", (date.today(),))
+    for lancamento in db.iter_rows("SELECT * FROM lancamentos WHERE ano = %(ano)s", {"ano": 2026}):
+        ...  # processamento em lotes, sem carregar tudo em memória
+csv_utils.write_csv("data/output/pendentes.csv", pendentes)  # o controle do robô fica em data/
 
-with connect(DatabaseConfig(engine="sqlite", path="data/controle.db")) as controle:
-    controle.execute("CREATE TABLE IF NOT EXISTS processados (id TEXT PRIMARY KEY, em TEXT)")
+with connect(DatabaseConfig(engine="duckdb")) as analitico:  # em memória, para consultar arquivos
+    resumo = analitico.fetch_all(
+        "SELECT status, count(*) AS n FROM read_csv('data/input/extrato.csv') GROUP BY status"
+    )
+
+with connect(DatabaseConfig(engine="sqlite", path="data/input/cadastro.db")) as cadastro:
+    ativo = cadastro.fetch_one("SELECT nome FROM fornecedores WHERE cnpj = ?", ("11222333000181",))
+    # cadastro.fetch_all("DELETE FROM fornecedores")  → DatabaseError: acesso somente leitura
 ```
 
 ### 8.16 `rpa_3003/utils/email_utils.py`
@@ -3762,7 +3804,7 @@ projects/.*.tmp-*/
 
 - **Responsabilidade:** documentação de entrada do workspace (RNF-018).
 - **Estrutura obrigatória (títulos de nível 2, nesta ordem):**
-  1. `Visão geral` — propósito e recursos.
+  1. `Visão geral` — propósito, recursos e restrições de segurança (bancos de dados somente leitura, P-24).
   2. `Requisitos` — Windows, Python 3.12+ 64 bits, navegadores.
   3. `Instalação` — `python -m venv .venv`, `.venv\Scripts\activate`, `pip install -e .[dev]`.
   4. `Início rápido` — UC-01 em 5 comandos.
@@ -3800,7 +3842,7 @@ assert main(["run", "meu_projeto", "--env", "dev"]) == 0
   4. `Arquitetura` — as quatro camadas, diagrama simplificado da seção 7.2, tabela de regras de dependência e como `tests/unit/test_architecture.py` as verifica.
   5. `Ciclo de uma execução` — caminho de `rpa3003 run` até o código de saída (seção 7.5.3), indicando o arquivo e a função responsáveis por cada etapa.
   6. `Convenções de código` — seção 7.7 e RNF-012, RNF-016 e RNF-017 resumidos em uma lista de regras, cada uma com um exemplo curto de uso correto e incorreto.
-  7. `Como estender` — um roteiro por ponto de extensão da seção 7.5.4 (navegador, banco de dados, provedor de segredos, canal de e-mail, template e utilitário), com arquivos a criar ou alterar, exemplo de código mínimo, teste a escrever e comando de verificação.
+  7. `Como estender` — um roteiro por ponto de extensão da seção 7.5.4 (navegador, banco de dados com conexão somente leitura, provedor de segredos, canal de e-mail, template e utilitário), com arquivos a criar ou alterar, exemplo de código mínimo, teste a escrever e comando de verificação.
   8. `Como escrever testes` — onde fica cada tipo de teste (12.3), marcadores (12.4), fixtures compartilhadas (12.5), isolamento de dependências externas (12.6) e limites de cobertura (12.8).
   9. `Fluxo de contribuição` — checklist antes de entregar uma mudança: DoD global (13.2), gate de qualidade (12.10), registro em `docs/DESVIOS.md`, atualização do README e deste guia, versão em `rpa_3003/_version.py` (P-01) e o que nunca muda (`LOG_FORMAT`, estrutura obrigatória de diretórios, códigos de saída e nomes de comandos do CLI).
   10. `Problemas comuns no desenvolvimento` — tabela erro → causa → ação (ex.: falha em `test_architecture.py`, dependência pesada importada no nível do módulo, teste pulado fora do Windows, `ruff format` alterando docstrings).
@@ -4174,7 +4216,7 @@ Linhas de traceback (que não começam com `[` seguido de dígito) pertencem à 
 | Nível | Uso |
 |---|---|
 | `TRACE` | Diagnóstico muito detalhado (desligado por padrão) |
-| `DEBUG` | Detalhes técnicos: SQL executado, cliques, leitura de segredo (sem valor) |
+| `DEBUG` | Detalhes técnicos: consultas SQL executadas, cliques, leitura de segredo (sem valor) |
 | `INFO` | Marcos do fluxo: início de execução e de step, URLs abertas, arquivos processados |
 | `SUCCESS` | Conclusão bem-sucedida de step ou da execução |
 | `WARNING` | Anomalia recuperada: nova tentativa, cache offline, opção ignorada, segredo curto |
@@ -4840,8 +4882,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 | `cv2` | Uso real sobre arrays sintéticos | — |
 | `smtplib`, `imaplib` | Classes substituídas por `MagicMock`; verificação de chamadas e critérios | `test_email_live.py` (marcador `integration`) |
 | `win32com`, `win32crypt` | `MagicMock` | DPAPI real com marcador `windows` |
-| `psycopg2` | `mocker.patch("psycopg2.connect")` para mapeamento de configuração | `test_postgres_live.py`, `test_denodo_live.py` |
-| `sqlite3`, `duckdb` | Uso real em `tmp_path` | — |
+| `psycopg2` | `mocker.patch("psycopg2.connect")` para mapeamento de configuração, `set_session(readonly=True, autocommit=False)` e ausência de `commit` | `test_postgres_live.py`, `test_denodo_live.py` |
+| `sqlite3`, `duckdb` | Uso real em `tmp_path`; o banco é criado e populado pelo teste com o driver, pois o framework só lê | — |
 | `subprocess` (CLI) | `Popen` substituído em `test_cli.py` | `e2e/test_create_and_run.py` |
 | Relógio | `time-machine` | — |
 
@@ -4861,7 +4903,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 | `test_archive_utils.py` | ZIP e TAR ida e volta; Zip Slip; TAR malicioso; detecção de extensão (RF-040) |
 | `test_calendar_utils.py` | Sexta-feira Santa 2026, Carnaval com `include_optional`, `nth_business_day`, `add_months`, parse inválido (RF-041) |
 | `test_crypt_utils.py` | Fernet texto/arquivo, chave errada, PBKDF2 determinístico, hash inseguro bloqueado, HMAC, DPAPI (`windows`) (RF-042, RNF-009) |
-| `test_database_utils.py` | SQLite e DuckDB reais: CRUD, `transaction` com rollback, aninhamento, `iter_rows`, `table_exists`; validação de configuração e registro de engine (RF-043) |
+| `test_database_utils.py` | SQLite e DuckDB reais: `fetch_all`, `fetch_one`, `fetch_scalar`, `iter_rows` em lotes, `table_exists`; bloqueio de cada tipo de instrução de escrita e de múltiplas instruções antes do driver, com arquivo inalterado; conexão somente leitura recusando escrita com a validação desativada; API sem `execute`, `executemany` e `transaction`; PostgreSQL simulado com `readonly=True` e sem `commit`; `RESERVED_OPTIONS` e `extra="forbid"`; validação de configuração e registro de engine (RF-043, RNF-010) |
 | `test_email_utils.py` | SMTP simulado (anexos, limites, validação); IMAP simulado (critério `SINCE` independente de locale, `BODY.PEEK`, filtro de assunto, `save_attachments`); Outlook simulado (RF-044, RF-045) |
 | `test_images_utils.py` | `resize` proporcional; RGBA → JPEG; `compare_images`; `images_to_pdf` (RF-046) |
 | `test_pdf_utils.py` | Criação e extração com acentos; split; merge; rotação; cifra AES-256 e senha errada; marca d'água; formulário; páginas fora do intervalo (RF-047) |
@@ -4996,14 +5038,15 @@ flowchart LR
 
 - **Objetivo:** bancos, e-mail, imagens e PDF.
 - **Tarefas (nesta ordem):**
-  - [ ] `utils/database_utils.py` (8.15) + testes unitários (SQLite e DuckDB reais) + `test_postgres_live.py` e `test_denodo_live.py`.
+  - [ ] `utils/database_utils.py` (8.15, somente leitura — P-24) + testes unitários (SQLite e DuckDB reais, incluindo bloqueio de escrita) + `test_postgres_live.py` e `test_denodo_live.py`.
   - [ ] `utils/email_utils.py` (8.16) + testes unitários + `test_email_live.py`.
   - [ ] `utils/images_utils.py` (8.17) + testes.
   - [ ] `utils/pdf_utils.py` (8.18) + testes.
-- **Requisitos cobertos:** RF-043 a RF-047.
+- **Requisitos cobertos:** RF-043 a RF-047, RNF-010 (bancos somente leitura).
 - **DoD da sprint:**
   - [ ] DoD global; cobertura de `rpa_3003/utils/*` ≥ 85%.
-  - [ ] `test_denodo_live.py` executado ao menos uma vez contra o Denodo corporativo; resultado registrado (risco R-11).
+  - [ ] Testes de bloqueio de escrita do RF-043 passando (validação de instruções e conexão somente leitura).
+  - [ ] `test_denodo_live.py` executado ao menos uma vez contra o Denodo corporativo; resultado registrado, com a confirmação da equipe de dados de que o usuário do robô só tem privilégio de consulta (riscos R-11 e R-20).
 
 #### Sprint 4 — Bots
 
@@ -5070,7 +5113,7 @@ flowchart LR
 | 0 | — | RNF-001, RNF-012, RNF-014 |
 | 1 | RF-001 a RF-025 | RNF-003, RNF-005, RNF-007, RNF-008, RNF-015 |
 | 2 | RF-037 a RF-042 | RNF-009, RNF-010, RNF-011, RNF-016 |
-| 3 | RF-043 a RF-047 | RNF-007 |
+| 3 | RF-043 a RF-047 | RNF-007, RNF-010 |
 | 4 | RF-026 a RF-036 | RNF-006, RNF-017 |
 | 5 | RF-048 a RF-052, RF-054, RF-055 | RNF-004 |
 | 6 | RF-053 | RNF-002 |
@@ -5083,6 +5126,7 @@ flowchart LR
 - [ ] O formato de log `[YYYY-MM-DD HH:MM:SS] [LEVEL] [nome_script] [linha] [user] mensagem` é verificado pelo teste E2E.
 - [ ] `rpa3003 create` e `rpa3003 run --env dev|prd` funcionam conforme a seção 9.
 - [ ] Credenciais de produção vêm exclusivamente do Vault.
+- [ ] Nenhuma API do framework grava em banco de dados, e os usuários de banco dos robôs têm somente privilégio de consulta (P-24).
 - [ ] Gate de qualidade (12.10) aprovado no Windows.
 - [ ] README (8.32) e guia do desenvolvedor (8.33) validados por desenvolvedores que não participaram da implementação.
 
@@ -5102,7 +5146,7 @@ flowchart LR
 | R-08 | Caracteres acentuados não digitados corretamente em aplicações desktop | Média | Médio | `pywinauto.keyboard.send_keys` com Unicode e escape; método `clipboard` como alternativa; teste `gui` com acentos | RF-035 |
 | R-09 | Vazamento de segredos em logs, tracebacks ou arquivos de status | Média | Alto | Mascaramento automático; `diagnose=False`; `SecretStr`; `detect-secrets` no pipeline; convenção de não incluir segredos em mensagens de exceção | RF-018, RNF-008 |
 | R-10 | Processos órfãos (driver, navegador, aplicação desktop) consomem recursos e travam execuções seguintes | Média | Médio | Rotinas de limpeza LIFO; `Browser.__exit__` e `quit()` idempotente; `kill_process_tree` em timeout; `DesktopBot.kill_process` no wrapup | RF-007, RF-052, RNF-006 |
-| R-11 | Incompatibilidade de recursos do Denodo com `psycopg2` | Média | Médio | `autocommit=True`; sem transações nem cursores nomeados; teste de integração obrigatório na Sprint 3; alternativa registrável via `register_engine` (por exemplo, implementação ODBC com `pyodbc` e o driver ODBC fornecido pela Denodo) | RF-043 |
+| R-11 | Incompatibilidade de recursos do Denodo com `psycopg2` | Média | Médio | `autocommit=True`; sem `BEGIN READ ONLY` nem cursores nomeados; leitura garantida pela validação de instruções e pelo usuário Denodo com privilégio só de consulta (P-24); teste de integração obrigatório na Sprint 3; alternativa registrável via `register_engine` (por exemplo, implementação ODBC com `pyodbc` e o driver ODBC fornecido pela Denodo) | RF-043 |
 | R-12 | Provedor de e-mail desativa autenticação básica SMTP/IMAP | Média | Médio | Relay SMTP interno; Outlook COM em sessões interativas; extensão por `EmailSender`/`EmailReader` para APIs modernas | RF-044, RF-045 |
 | R-13 | Outlook COM falha em sessão não interativa ou sem perfil configurado | Alta | Médio | Uso restrito a sessões interativas com perfil configurado; preferência por SMTP/IMAP em robôs não assistidos; `EmailError` com mensagem explicativa | RF-045 |
 | R-14 | Caminhos acima de 260 caracteres (MAX_PATH) | Baixa | Médio | Workspace em caminho curto (ex.: `C:\rpa`); `LongPathsEnabled` via GPO; `safe_filename` com `max_length` | RNF-016 |
@@ -5111,6 +5155,7 @@ flowchart LR
 | R-17 | Execuções agendadas sobrepostas do mesmo projeto | Média | Médio | Lock de instância única com código `6`; `--timeout` nas tarefas agendadas | RF-004, RF-052 |
 | R-18 | Mudanças de API em bibliotecas (selenium, pypdf, holidays, pydantic) | Média | Médio | Faixas de versão com limite superior de versão maior; pipeline com testes `browser` e `integration` antes de atualizar dependências | RNF-014 |
 | R-19 | Interpretação divergente do PRD pelo agente implementador | Média | Alto | Premissas explícitas (1.5); contratos normativos (seções 8 e 11); critérios de aceitação testáveis; DoD por sprint; registro de desvios em `docs/DESVIOS.md` | Todos |
+| R-20 | Credencial de banco do robô com privilégio de escrita (concessão excessiva, usuário compartilhado ou credencial vazada) | Média | Alto | Usuário dedicado por robô com privilégio somente de consulta, revisado pela equipe de banco de dados (P-24); conexão somente leitura (PostgreSQL, SQLite, DuckDB); API sem escrita; validação de instruções antes do envio; credenciais no Vault com mascaramento em logs | RF-043, RNF-008, RNF-010 |
 
 ---
 

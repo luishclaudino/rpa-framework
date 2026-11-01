@@ -243,7 +243,7 @@ class CryptoError(UtilsError):
 
 
 class DatabaseError(UtilsError):
-    """Erro de conexão ou de execução de SQL."""
+    """Erro de conexão, de consulta SQL ou instrução bloqueada pelo acesso somente leitura."""
 
 
 class EmailError(UtilsError):
