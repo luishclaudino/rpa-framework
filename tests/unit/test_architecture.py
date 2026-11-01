@@ -277,6 +277,31 @@ def test_utils_modules_import_drivers_lazily(module_name: str, drivers: tuple[st
     assert sorted(name for name in loaded if any(_is_within(name, d) for d in drivers)) == []
 
 
+@pytest.mark.parametrize(
+    ("statement", "expected", "absent"),
+    [
+        (
+            "import rpa_3003.bots.desktop_bot",
+            ("numpy",),
+            ("cv2", "mss", "pyautogui", "pywinauto", "pyperclip", "psutil", "selenium"),
+        ),
+        (
+            "from rpa_3003.bots import Browser",
+            ("selenium",),
+            ("cv2", "numpy", "mss", "pyautogui", "pywinauto", "pyperclip"),
+        ),
+    ],
+)
+def test_bots_load_heavy_modules_only_on_use(
+    statement: str, expected: tuple[str, ...], absent: tuple[str, ...]
+) -> None:
+    """RNF-004/RNF-017: o desktop_bot importa só o numpy no nível do módulo (seção 8.22), e
+    acessar `Browser` carrega o selenium sem as bibliotecas de automação desktop."""
+    loaded = _modules_loaded_by(statement)
+    assert all(name in loaded for name in expected)
+    assert sorted(name for name in loaded if any(_is_within(name, a) for a in absent)) == []
+
+
 def _docstring_nodes(tree: ast.Module) -> set[int]:
     """Identificadores (`id`) dos nós de docstring de módulo, classes e funções."""
     owners = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)

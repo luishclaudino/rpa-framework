@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Carregamento atrasado - rpa_3003</title>
+</head>
+<body>
+  <p id="aguarde">Carregando...</p>
+  <script>
+    setTimeout(function () {
+      var elemento = document.createElement("div");
+      elemento.id = "atrasado";
+      elemento.textContent = "Conteúdo carregado";
+      document.body.appendChild(elemento);
+      document.getElementById("aguarde").style.display = "none";
+    }, 2000);
+  </script>
+</body>
+</html>

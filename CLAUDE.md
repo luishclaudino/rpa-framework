@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Framework RPA `rpa_3003` (Python 3.12+, alvo Windows). O `PRD.md` é a especificação **normativa** e o código é implementado sprint a sprint (seção 13.3 do PRD). Antes de mexer em um módulo, leia a subseção correspondente da seção 8 (contratos), além das seções 5, 10 e 11 quando aplicável.
 
-Estado atual: Sprints 0 a 3 concluídas (`rpa_3003/core/*` e `rpa_3003/utils/*` completos). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais, e o DoD do Denodo continua pendente (`docs/DESVIOS.md`, Sprint 3). `bots/`, `cli.py`, `__main__.py`, `templates/__init__.py` e os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprints 4 a 6).
+Estado atual: Sprints 0 a 4 concluídas (`rpa_3003/core/*`, `rpa_3003/utils/*` e `rpa_3003/bots/*` completos). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais. Continuam pendentes o DoD do Denodo e o do modo IE, que não está habilitado na máquina de desenvolvimento (`docs/DESVIOS.md`, Sprint 3 e D-08). `cli.py`, `__main__.py`, `templates/__init__.py` e os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprints 5 e 6).
 
 ## Ambiente e comandos
 
@@ -20,6 +20,7 @@ O `.venv` usa o CPython 3.12.16 local em `.python/` (`docs/DESVIOS.md`, D-01). N
 .venv\Scripts\python.exe -m pytest -k rotation
 .venv\Scripts\python.exe -m pytest -m integration               # requer variáveis RPA3003_TEST_*
 .venv\Scripts\python.exe -m pytest -m "browser or gui"          # sessão Windows interativa
+$env:RPA3003_TEST_IE_MODE = "1"                                # habilita o teste do modo IE (D-08)
 
 .venv\Scripts\python.exe -m pytest --cov=rpa_3003 --cov-report=term-missing
 .venv\Scripts\coverage.exe report --include="rpa_3003/core/*" --fail-under=90
@@ -91,7 +92,14 @@ Pontos centrais do `core`:
   `tmp_path`.
 - Fixtures compartilhadas: `no_sleep` (substitui `time.sleep`), `read_log_lines`, `fake_hvac`
   (classe `hvac.Client` simulada; o cliente é `fake_hvac.return_value`), `projects_dir`,
-  `sample_csv` e `sample_pdf` (3 páginas, gerado com reportlab).
+  `sample_csv`, `sample_pdf` (3 páginas, gerado com reportlab) e `http_server` (serve
+  `tests/fixtures/html` em porta livre e retorna a URL base terminada em `/`).
+- Bots nos testes unitários: `test_browser_selenium.py` registra um `FakeBuilder` como `fake`
+  (o registro da `BrowserFactory` é restaurado após cada teste) e simula `webdriver.Chrome/Edge/Ie`
+  com `mocker.patch("selenium.webdriver.Chrome")`. `test_desktop_bot.py` instala módulos falsos de
+  `mss`, `pyautogui`, `pyperclip` e `pywinauto` em `sys.modules` (fixture `gui`) e usa o OpenCV real
+  sobre telas sintéticas de ruído. O `test_desktop_live.py` digita no Bloco de Notas: é pulado
+  se já houver `notepad.exe` aberto e só digita em um arquivo próprio em `tmp_path`.
 - Bancos nos testes: SQLite e DuckDB reais em `tmp_path`, populados pelo próprio teste com o
   driver. Para testar a conexão somente leitura, desative a validação com
   `mocker.patch.object(database_utils, "_read_only_violation", return_value=None)`. O

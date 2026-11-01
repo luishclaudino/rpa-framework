@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Login - rpa_3003</title>
+</head>
+<body>
+  <h1>Acesso ao sistema</h1>
+  <form id="form-login" action="#" onsubmit="return fazerLogin();">
+    <label for="usuario">Usuário</label>
+    <input id="usuario" name="usuario" type="text">
+    <label for="senha">Senha</label>
+    <input id="senha" name="senha" type="password">
+    <label for="filial">Filial</label>
+    <select id="filial" name="filial">
+      <option value="">Selecione</option>
+      <option value="sp">São Paulo</option>
+      <option value="rj">Rio de Janeiro</option>
+    </select>
+    <button id="entrar" type="submit">Entrar</button>
+  </form>
+  <button id="alerta" type="button" onclick="alert('Confirma o envio?');">Alerta</button>
+  <p id="resultado"></p>
+  <script>
+    function fazerLogin() {
+      var usuario = document.getElementById("usuario").value;
+      var senha = document.getElementById("senha").value;
+      var filial = document.getElementById("filial");
+      var nome = filial.options[filial.selectedIndex].text;
+      document.getElementById("resultado").textContent =
+        "Bem-vindo, " + usuario + " (" + nome + ") | senha=" + senha.length + " caracteres";
+      return false;
+    }
+  </script>
+</body>
+</html>

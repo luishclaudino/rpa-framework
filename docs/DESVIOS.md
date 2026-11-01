@@ -292,3 +292,145 @@ consulta) continua pendente. O resultado deve ser registrado aqui.
   Windows. Expressões regulares de `database_utils` e `email_utils` foram escritas sem `\` entre
   caracteres de nome (`(?!\d)\w` em vez de `[^\W\d]`), para não gerar falso positivo no
   verificador do RNF-016.
+
+## Sprint 4 — Bots
+
+As regras de `tests/unit/test_architecture.py` não mudaram: a seção 7.2 já permite que `bots`
+importe `core` (exceto `workflow`) e `utils`. Um caso novo verifica que importar
+`bots.desktop_bot` carrega só o numpy (sem cv2, mss, pyautogui, pywinauto, pyperclip e psutil)
+e que acessar `rpa_3003.bots.Browser` carrega o selenium sem as bibliotecas de desktop
+(RNF-004, RNF-017).
+
+### D-07 — `ignore_protected_mode_settings` no lugar de `introduce_flakiness_by_ignoring_security_domains`
+
+- **Referência:** RF-029 e comportamento obrigatório de `EdgeIEDriverBuilder` (seção 8.21).
+- **Desvio:** o builder do modo IE define `IeOptions.ignore_protected_mode_settings` com o valor
+  de `BrowserOptions.ie_ignore_protected_mode_settings`.
+- **Justificativa:** o `IeOptions` do Selenium 4 (4.52 no `.venv`) não tem o atributo
+  `introduce_flakiness_by_ignoring_security_domains`. Como a classe não usa `__slots__`,
+  atribuir esse nome só criaria um atributo Python comum, sem efeito no driver.
+  `ignore_protected_mode_settings` é o nome atual da mesma opção e envia a capability
+  `ignoreProtectedModeSettings` ao IEDriverServer, que ignora a divergência de Modo Protegido
+  entre zonas. O campo de `BrowserOptions` e o contrato público não mudaram.
+
+### D-08 — Teste do modo IE habilitado por `RPA3003_TEST_IE_MODE=1`
+
+- **Referência:** RF-029 (teste de integração em Windows com modo IE), seção 12.4 e DoD da
+  Sprint 4 ("teste do modo IE passa em máquina com modo IE configurado").
+- **Desvio:** `test_edge_ie_mode_document_mode` (`tests/integration/test_browser_live.py`) só
+  roda com a variável `RPA3003_TEST_IE_MODE=1`, que não consta na lista da seção 12.4. Sem ela,
+  o teste é pulado com a orientação de configurar a máquina.
+- **Justificativa:** o modo IE depende da configuração da máquina (zoom 100%, mesmo Modo
+  Protegido em todas as zonas, IEDriverServer 32 bits; risco R-01). Sem essa configuração, o
+  IEDriverServer não consegue se anexar ao Edge e o teste fica parado até o tempo limite, em vez
+  de falhar com uma mensagem útil. Assim, `pytest -m browser` continua verificando Chrome e Edge
+  em qualquer máquina de desenvolvimento.
+- **Resultado na máquina de desenvolvimento (01/11/2026):** o teste não passou. O Selenium
+  Manager baixou o IEDriverServer 4.14.0 de 32 bits, e o Edge abriu com `--ie-mode-force`. O log
+  do driver (`--log-level=DEBUG`) mostra que as configurações de Modo Protegido foram aceitas,
+  mas nenhuma janela do Internet Explorer (`IWebBrowser2`) apareceu no processo do Edge
+  ("Could not find an Internet Explorer window belonging to the process"). Isso indica que a
+  integração com o modo IE não está habilitada nesta máquina (configuração ou política do Edge).
+  O item do DoD sobre o modo IE continua pendente até a execução em uma máquina configurada,
+  cujo resultado deve ser registrado aqui.
+- **Limitação conhecida:** depois de não encontrar a janela, o IEDriverServer 4.14 tenta outra
+  estratégia (`IShellWindows`) sem prazo, e a criação da sessão fica bloqueada. O Selenium 4.52
+  não tem forma pública de limitar o tempo dessa chamada. O framework define
+  `browser_attach_timeout` (próxima seção), que limita só a primeira fase. Em tarefas agendadas,
+  a proteção completa é o tempo limite de execução do CLI (`rpa3003 run --timeout`, RF-052), que
+  encerra a árvore de processos.
+
+### Decisões de implementação (sem alteração de contrato)
+
+- **`Browser`:**
+  - `Browser(options=None)` usa `BrowserOptions.from_settings(get_settings(), browser)`, para
+    que `RPA3003_BROWSER_HEADLESS`, `RPA3003_SELENIUM_TIMEOUT`, `RPA3003_PAGE_LOAD_TIMEOUT` e os
+    caminhos de driver valham também quando o projeto não monta as opções.
+    `screenshot_on_error` continua sendo o parâmetro do construtor (padrão `True`).
+  - `from_settings` com navegador registrado por extensão (ex.: `firefox`) deixa `driver_path`
+    em `None`. `BrowserFactory.available()` retorna os nomes em ordem alfabética.
+  - No modo IE, `headless` é ignorado também em `start()`: a janela é maximizada normalmente, e
+    o log registra `headless=False`, que é o estado real.
+  - Com `window_size` e `maximized=True` sem headless, o Chrome/Edge recebe `--start-maximized`
+    e `--window-size` (leitura literal da seção 8.21). Em seguida, `start()` aplica
+    `set_window_size`, então prevalece o tamanho informado.
+  - `start()` converte `WebDriverException` e `OSError` em `DriverInitializationError`, com
+    `details` `tipo`, `erro` (classe e primeira linha da mensagem, sem o stacktrace do driver) e,
+    no modo IE, `dica`. Se a configuração do driver recém-criado falhar, o driver é encerrado
+    antes de lançar o erro (RNF-006).
+  - A regra "toda `TimeoutException` → `ElementNotFoundError`" foi aplicada às esperas por
+    elemento (`find`, `wait_visible`, `wait_clickable`, `switch_to_frame` com localizador), com
+    a mensagem `Elemento não encontrado: <locator> em <timeout>s`. `wait_invisible` e
+    `wait_url_contains` usam a mesma classe com mensagens próprias (`Elemento continua
+    visível...`, `URL não contém...`), porque a mensagem padrão seria enganosa nesses casos.
+    `switch_to_window` lança `BrowserError`, como manda a seção 8.21. O tempo limite de
+    carregamento em `open()` gera `BrowserError` com `url` e `timeout`, pois não há elemento
+    envolvido.
+  - Sem URL disponível no erro (ex.: alerta aberto), `details["url"]` recebe `desconhecida`.
+  - `exists()` retorna `False` para qualquer erro do Selenium, inclusive seletor inválido. Com o
+    navegador não iniciado, ainda lança `BrowserNotStartedError`, que indica erro de programação.
+  - `get_text` e `select_option` esperam o elemento visível. `get_attribute` e
+    `scroll_into_view` esperam a presença no DOM. Opção inexistente em `select_option` gera
+    `ElementNotFoundError`, e elemento que não é `<select>` gera `BrowserError`. Clique
+    interceptado com `js_fallback=False` gera `BrowserError`.
+  - `type_text(sensitive=True)` registra o segredo antes de esperar o elemento, para que nenhuma
+    mensagem posterior o exiba.
+  - Rótulo das capturas: caracteres fora de letras, dígitos, `_` e `-` viram `_` (máximo de 80
+    caracteres). Rótulo vazio vira `captura` (`Browser`) ou `tela` (`DesktopBot`).
+  - `expect_download`: ao entrar no bloco, registra os nomes existentes. Ao sair, procura um
+    arquivo novo que case com `pattern`, sem sufixo temporário e sem um arquivo
+    `<nome><sufixo temporário>` correspondente. Esse caso cobre o arquivo vazio que o Firefox
+    cria com o nome final durante o download. Em seguida, aguarda a estabilidade com
+    `filesystem_utils.wait_for_file`, usando o nome exato escapado com `glob.escape`. Se o
+    arquivo aparecer perto do fim do prazo, a verificação de estabilidade ainda recebe 1,5 s.
+    Exceção dentro do bloco é propagada sem espera.
+  - O builder do modo IE define `IeOptions.browser_attach_timeout` como
+    `page_load_timeout * 1000` ms. O padrão do IEDriver (`0`) espera para sempre a janela do Edge
+    em modo IE (RNF-007).
+  - `find_edge_executable`: um caminho explícito inexistente gera `WARNING` e a busca continua
+    nos caminhos padrão. A mensagem do erro lista todos os caminhos pesquisados (`nenhum` quando
+    não há variável `ProgramFiles*` nem caminho explícito).
+- **`DesktopBot`:**
+  - `capture_screen` é anotado como `numpy.typing.NDArray[np.uint8]`. É o mesmo
+    `numpy.ndarray` do contrato, com o parâmetro de tipo que o `mypy --strict` exige.
+  - Sem `region`, as coordenadas somam o canto superior esquerdo da tela virtual
+    (`mss.monitors[0]`), que é negativo quando há monitor à esquerda ou acima do principal. Assim
+    o `Match` fica em coordenadas absolutas.
+  - `find_all_images` aplica a regra de supressão de forma gulosa, por confiança decrescente,
+    descartando as posições a menos de metade da largura e da altura de cada match aceito.
+  - O OpenCV atribui confiança `1,0` a uma imagem de referência uniforme (uma cor só) em
+    qualquer posição. Imagens de referência precisam de textura (texto, bordas, ícones).
+  - O log `Imagem encontrada` informa em `posicao` o centro do `Match`, que é o ponto clicado
+    por `click_image`.
+  - `ImageNotFoundError` traz em `details["imagem"]` o caminho absoluto resolvido. A captura
+    `imagem_nao_encontrada` cobre a tela inteira, para mostrar o contexto. Falha ao salvá-la
+    vira `WARNING`.
+  - O construtor valida `confidence` em (0, 1], `timeout` e `pause` não negativos e `backend`
+    `uia`/`win32` (`ValueError`). `poll_interval` deve ser positivo, e `type_text` aceita apenas
+    os métodos `keys` e `clipboard`.
+  - No método `clipboard`, o conteúdo anterior é restaurado em `finally`, também quando a
+    colagem falha. Falhas do pyperclip viram `DesktopAutomationError`.
+  - `connect_window` lança `WindowNotFoundError` quando a janela não aparece no prazo e
+    `DesktopAutomationError` quando mais de uma janela corresponde ao título: agir na janela
+    errada é mais arriscado do que falhar. `wait_window` retorna `False` só no primeiro caso, e
+    `window_exists` retorna `True` quando há mais de uma janela.
+  - `start_application` registra o comando em `INFO` e converte `AppStartError` em
+    `DesktopAutomationError`.
+  - `kill_process` nunca encerra o próprio processo do robô (ex.: `kill_process("python.exe")`).
+    Um processo que termina entre a espera de 5 s e o `kill()` conta como encerrado.
+  - A captura usa `mss.MSS()` quando existe (mss >= 10.2, em que `mss.mss()` ficou obsoleto) e
+    `mss.mss()` nas versões anteriores, que o `requirements.txt` ainda aceita (`mss>=9.0`).
+- **Testes:** a fixture `http_server` (seção 12.5) entrou no `conftest.py`. Além das cinco
+  páginas da seção 12.3, `tests/fixtures/html/relatorio.csv` é o arquivo baixado no teste de
+  download. As páginas usam JavaScript ES5, compatível com o modo IE.
+- **Teste do Bloco de Notas (`test_desktop_live.py`):**
+  - O RF-036 cita `title_re=".*(Bloco de Notas|Notepad).*"`, mas no Windows 11 pt-BR o título
+    é "Bloco de **n**otas", e o `title_re` do pywinauto diferencia maiúsculas. O teste usa
+    `(?i).*(Bloco de Notas|Notepad).*` para conferir o título.
+  - O Bloco de Notas do Windows 11 restaura as abas da sessão anterior, e a aba ativa pode ser
+    um arquivo do usuário. Por isso o teste abre um arquivo próprio em `tmp_path`, conecta pela
+    janela com esse arquivo ativo e digita só nessa aba. No fim, salva o arquivo (o conteúdo
+    gravado confirma a digitação acentuada), fecha a aba com Ctrl+W e encerra o processo com
+    `kill_process`. O teste é pulado quando já existe um `notepad.exe` aberto, e a área de
+    transferência do usuário é restaurada ao final.
+  - Resultado em 01/11/2026 (Windows 11 pt-BR): `pytest -m gui` com 3 testes passando.

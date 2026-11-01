@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Modo IE - rpa_3003</title>
+</head>
+<body>
+  <p>documentMode: <span id="modo"></span></p>
+  <script>
+    document.getElementById("modo").innerHTML = String(document.documentMode || "ausente");
+  </script>
+</body>
+</html>

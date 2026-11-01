@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,6 +26,7 @@ RESET_HOOKS: Final[tuple[tuple[str, str], ...]] = (
     ("rpa_3003.core.vault", "reset_vault_clients"),
 )
 WINDOWS_ONLY_MARKERS: Final[tuple[str, ...]] = ("windows", "gui", "browser")
+HTML_FIXTURES_DIR: Final[Path] = Path(__file__).resolve().parent / "fixtures" / "html"
 
 
 def _reset_framework_state() -> None:
@@ -130,6 +134,31 @@ def fake_hvac(mocker: MockerFixture) -> MagicMock:
         "data": {"username": "robo.teste", "password": "S3nh@Forte"}
     }
     return client_class
+
+
+class _QuietHandler(SimpleHTTPRequestHandler):
+    """Serve arquivos estáticos sem registrar cada requisição no stderr."""
+
+    def log_message(self, format: str, *args: Any) -> None:
+        return
+
+
+@pytest.fixture
+def http_server() -> Iterator[str]:
+    """Servidor http.server em thread, porta livre, servindo tests/fixtures/html.
+
+    Retorna a URL base, terminada em ``/``.
+    """
+    handler = functools.partial(_QuietHandler, directory=str(HTML_FIXTURES_DIR))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, name="http_server", daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

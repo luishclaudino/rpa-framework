@@ -5052,15 +5052,15 @@ flowchart LR
 
 - **Objetivo:** automação web e desktop.
 - **Tarefas (nesta ordem):**
-  - [ ] `bots/__init__.py` com importação preguiçosa (8.20).
-  - [ ] `bots/browser_selenium.py` (8.21) + `test_browser_selenium.py` + páginas em `tests/fixtures/html/` + `test_browser_live.py`.
-  - [ ] `bots/desktop_bot.py` (8.22) + `test_desktop_bot.py` + `test_desktop_live.py`.
+  - [x] `bots/__init__.py` com importação preguiçosa (8.20).
+  - [x] `bots/browser_selenium.py` (8.21) + `test_browser_selenium.py` + páginas em `tests/fixtures/html/` + `test_browser_live.py`. *(teste do modo IE habilitado por `RPA3003_TEST_IE_MODE=1` — `docs/DESVIOS.md`, D-08)*
+  - [x] `bots/desktop_bot.py` (8.22) + `test_desktop_bot.py` + `test_desktop_live.py`.
 - **Requisitos cobertos:** RF-026 a RF-036, RNF-006, RNF-017.
 - **DoD da sprint:**
-  - [ ] DoD global; cobertura de `rpa_3003/bots/*` ≥ 70%.
-  - [ ] `pytest -m browser` passa com Chrome e Edge; teste do modo IE passa em máquina com modo IE configurado.
-  - [ ] `pytest -m gui` passa com o Bloco de Notas, incluindo digitação acentuada.
-  - [ ] Nenhum processo de driver remanescente após os testes de navegador.
+  - [x] DoD global; cobertura de `rpa_3003/bots/*` ≥ 70%. *(99%; desvio D-07 e decisões de interpretação em `docs/DESVIOS.md`, Sprint 4)*
+  - [ ] `pytest -m browser` passa com Chrome e Edge; teste do modo IE passa em máquina com modo IE configurado. *(Chrome e Edge: 16 testes passando em 01/11/2026; modo IE pendente: a integração com o modo IE não está habilitada na máquina de desenvolvimento — `docs/DESVIOS.md`, D-08)*
+  - [x] `pytest -m gui` passa com o Bloco de Notas, incluindo digitação acentuada. *(3 testes em 01/11/2026, Windows 11 pt-BR)*
+  - [x] Nenhum processo de driver remanescente após os testes de navegador. *(verificado após cada teste por fixture em `test_browser_live.py`)*
 
 #### Sprint 5 — CLI
 
