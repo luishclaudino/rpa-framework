@@ -81,6 +81,23 @@ def sample_csv(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def sample_pdf(tmp_path: Path) -> Path:
+    """PDF de 3 páginas gerado com reportlab, contendo 'Página 1/2/3' e 'Ação R$ 1.500,00'."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    path = tmp_path / "amostra.pdf"
+    document = canvas.Canvas(str(path), pagesize=A4)
+    for number in range(1, 4):
+        document.setFont("Helvetica", 14)
+        document.drawString(72, 760, f"Página {number}")
+        document.drawString(72, 730, "Ação R$ 1.500,00")
+        document.showPage()
+    document.save()
+    return path
+
+
+@pytest.fixture
 def read_log_lines() -> Callable[[Path], list[str]]:
     """Função que chama logger.complete() e retorna as linhas de todos os *.log da pasta."""
 

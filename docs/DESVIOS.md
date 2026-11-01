@@ -179,3 +179,114 @@ mudaram: a seção 7.2 já permite que um `utils` importe outro.
 - **Testes:** a fixture `sample_csv` (seção 12.5) entrou no `conftest.py`. O RNF-016 (sem
   `os.path.join` nem `\` como separador em literais) passou a ser verificado em
   `test_architecture.py`.
+
+## Sprint 3 — Utils II
+
+As regras de `tests/unit/test_architecture.py` não mudaram. Um caso novo verifica que importar
+`database_utils`, `email_utils` e `pdf_utils` não carrega `psycopg2`, `duckdb`, `win32com`,
+`pypdf`, `pdfplumber` nem `reportlab` (RNF-004, RNF-017).
+
+### D-06 — `sslmode` padrão do PostgreSQL e do Denodo (RNF-009 × seção 8.15)
+
+- **Referência:** RNF-009 ("TLS com verificação de certificado ativa por padrão em [...]
+  PostgreSQL e Denodo") e contrato de `DatabaseConfig` (`sslmode: str | None = None`, "sslmode
+  repassado").
+- **Situação:** o contrato foi mantido. Com `sslmode=None`, o parâmetro não é enviado ao
+  `psycopg2`, e o libpq usa o padrão `prefer`, que não verifica o certificado. Para cumprir o
+  RNF-009, o projeto deve informar `sslmode="verify-full"` (ou `verify-ca`).
+- **Motivo:** o contrato normativo da seção 8.15 define `None` como padrão. Forçar `verify-full`
+  impediria a conexão com servidores sem TLS, e as variáveis `RPA3003_TEST_PG_*` e
+  `RPA3003_TEST_DENODO_*` não incluem certificado.
+- **Pendência:** decidir se o padrão deve passar a ser `verify-full`. Isso altera o contrato da
+  seção 8.15.
+
+### Testes de integração ainda não executados
+
+`tests/integration/test_postgres_live.py`, `test_denodo_live.py` e `test_email_live.py` foram
+criados. Sem as variáveis `RPA3003_TEST_*`, eles são pulados, e nesta máquina não foram
+executados contra servidores reais. O item do DoD sobre o Denodo corporativo (execução, registro
+do resultado e confirmação da equipe de dados de que o usuário do robô só tem privilégio de
+consulta) continua pendente. O resultado deve ser registrado aqui.
+
+### Decisões de implementação (sem alteração de contrato)
+
+- **`database_utils`:**
+  - Validação de instruções (camada 4): além das regras da seção 8.15, comentário de bloco com
+    `/*` dentro dele é rejeitado. O PostgreSQL aceita comentários aninhados e o SQLite não, então
+    a análise seria ambígua. A regra do literal terminado em `\` passou a valer para qualquer `\`
+    seguido de aspas dentro do literal, o que também cobre `'a\''b'`. Parâmetros `$nome` do
+    DuckDB não são tratados como palavras: `$update` é aceito, mas `t.delete` é bloqueado.
+  - `details["sql"]` traz os primeiros 200 caracteres do SQL em uma linha, com espaços
+    consecutivos reduzidos a um. Assim, o log continua aderente à regex da seção 10.4.
+  - O erro do driver vai em `details["erro"]` (`Classe: mensagem`) e, quando existe, o SQLSTATE
+    (`pgcode`) vai em `details["sqlstate"]`. Valores de parâmetros nunca são incluídos.
+  - Sem parâmetros, `execute(sql)` é chamado sem o segundo argumento, para que `%` literal não
+    passe pela interpolação do `psycopg2`. `params` como texto ou bytes gera `TypeError`.
+  - `iter_rows` valida a instrução na chamada, e a conexão e a consulta só acontecem na primeira
+    iteração. O log `Consulta executada` é gravado quando a iteração chega ao fim.
+  - `table_exists` não diferencia maiúsculas e inclui views. Sem `schema`, usa
+    `current_schema()` no PostgreSQL e no DuckDB e `main` no SQLite. No SQLite, `schema` é o
+    banco anexado (`main`, `temp`).
+  - No DuckDB, `options` é repassado como `config` de `duckdb.connect`. O banco em memória não
+    pode ser aberto com `read_only=True` (limitação do DuckDB), por isso conta só com a validação
+    de instruções. Ele não tem dados próprios, e `COPY`/`ATTACH` são bloqueados.
+  - A configuração fica em `Database.config`. Os campos obrigatórios de cada engine ficam no
+    atributo privado `_required_fields`, ponto de extensão para novas engines junto com
+    `validate_config`. `register_engine` rejeita nome vazio (`ValueError`) e classe que não seja
+    subclasse de `Database` (`TypeError`).
+  - A conexão aberta é registrada em `INFO`
+    (`Conexão com banco de dados aberta | engine=<e> | destino=<host:porta/banco ou arquivo>`),
+    sem segredos.
+- **`email_utils`:**
+  - `search` (IMAP) ordena pelo UID decrescente, que é a ordem de chegada na pasta, e baixa as
+    mensagens uma a uma até atingir `limit`. `mark_as_read` e `move` selecionam a pasta em que o
+    e-mail foi encontrado. Quando ela não é conhecida, usam a pasta selecionada e, sem nenhuma,
+    lançam `EmailError`. O cliente IMAP conecta automaticamente no primeiro uso.
+  - Os nomes de pasta IMAP são enviados em UTF-7 modificado (RFC 3501) e entre aspas quando
+    necessário. `"INBOX"` continua sendo enviado como `select("INBOX", readonly=False)`.
+  - São considerados anexos as partes com nome de arquivo ou `Content-Disposition: attachment`
+    em qualquer nível. Isso inclui PDFs marcados como `inline` por alguns clientes. Partes sem
+    nome recebem `anexo_<n><extensão>`. Falha ao gravar anexos gera `FileOperationError`.
+  - No SMTP, `bcc` vai apenas no envelope. A mensagem recebe `Date` e `Message-ID`, este com o
+    domínio do remetente para evitar a resolução lenta de `getfqdn()` no Windows. A validação
+    também verifica `from_addr`, `reply_to` e o remetente resolvido. Um único endereço em texto
+    é aceito como lista. Cabeçalho com quebra de linha gera `EmailError`.
+  - No Outlook, a validação usa o mesmo limite de 25 MB do SMTP. `from_addr` vira
+    `SentOnBehalfOfName`, `reply_to` vira `ReplyRecipients` e `account` (endereço SMTP ou nome
+    de exibição) vira `SendUsingAccount` e define a Caixa de Entrada lida. Subpastas são
+    relativas à Caixa de Entrada e aceitam níveis (`"Boletos/2026"`). A varredura para no
+    primeiro item mais antigo que `since`. Os anexos são lidos com `SaveAsFile` em pasta
+    temporária, para que `payload` venha preenchido como no IMAP. `body_html` só é preenchido
+    quando `BodyFormat` é HTML. Endereços Exchange são resolvidos para SMTP.
+  - `render_template` lê como arquivo um caminho (`os.PathLike`) ou um texto de uma linha
+    terminado em `.html`/`.htm`/`.txt` que aponte para arquivo existente. O arquivo é lido com
+    `filesystem_utils.read_text`, que tem fallback para cp1252.
+- **`images_utils`:**
+  - `resize` com largura e altura e `keep_aspect=True` encaixa a imagem na caixa sem distorção.
+    Com `keep_aspect=False` e uma só dimensão, a outra é mantida.
+  - `crop` exige área não vazia dentro da imagem (`ValueError`). `to_grayscale` preserva a
+    transparência (`LA`). `add_text` converte para RGB ou, com transparência, RGBA.
+  - `images_to_pdf` coloca a transparência sobre fundo branco e aceita uma única imagem.
+    `to_base64` aceita `JPG`/`TIF` e rejeita formato sem gravação (`ValueError`). `from_base64`
+    aceita prefixo `data:`. `save_image` valida `quality` entre 1 e 100, e extensão sem suporte
+    gera `ImageProcessingError`.
+- **`pdf_utils`:**
+  - `pypdf`, `pdfplumber` e `reportlab` são importados dentro das funções (RNF-004).
+  - PDF cifrado com senha de usuário vazia (só restrições de permissão) abre sem senha. Arquivo
+    inexistente gera `PDFError`, como os demais erros do módulo. `search_text` não tem
+    `password` no contrato: PDFs com senha de abertura devem passar antes por `decrypt_pdf`.
+  - Os PDFs são gravados em `<destino>.<uuid>.tmp` e renomeados com `os.replace`, então nunca
+    fica arquivo parcial. Os nomes gerados por `split_pdf` passam por `safe_filename`, e
+    `ranges=[]` gera `ValueError`.
+  - `get_metadata` remove a `/` inicial das chaves. Os PDFs criados recebem `Author=rpa_3003` e
+    o título informado.
+  - `add_watermark` gera um carimbo por tamanho de página, com o texto centralizado e a
+    opacidade via `ExtGState`. `fill_form` só atualiza páginas com anotações (`/Annots`), para
+    evitar avisos do pypdf.
+  - `create_pdf_table` usa `Paragraph` em cada célula (quebra de texto) e colunas de mesma
+    largura. `None` vira célula vazia.
+- **Testes:** a fixture `sample_pdf` (seção 12.5) entrou no `conftest.py`. Os testes de fonte
+  TrueType usam a `Vera.ttf` distribuída com o reportlab, para não depender das fontes do
+  Windows. Expressões regulares de `database_utils` e `email_utils` foram escritas sem `\` entre
+  caracteres de nome (`(?!\d)\w` em vez de `[^\W\d]`), para não gerar falso positivo no
+  verificador do RNF-016.

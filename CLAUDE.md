@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Framework RPA `rpa_3003` (Python 3.12+, alvo Windows). O `PRD.md` é a especificação **normativa** e o código é implementado sprint a sprint (seção 13.3 do PRD). Antes de mexer em um módulo, leia a subseção correspondente da seção 8 (contratos), além das seções 5, 10 e 11 quando aplicável.
 
-Estado atual: Sprints 0 a 2 concluídas (`rpa_3003/core/*` completo; em `utils/`, `filesystem`, `json`, `csv`, `archive`, `calendar` e `crypt`). `utils/{database,email,images,pdf}_utils.py`, `bots/`, `cli.py`, `__main__.py`, `templates/__init__.py` e os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprints 3 a 6).
+Estado atual: Sprints 0 a 3 concluídas (`rpa_3003/core/*` e `rpa_3003/utils/*` completos). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais, e o DoD do Denodo continua pendente (`docs/DESVIOS.md`, Sprint 3). `bots/`, `cli.py`, `__main__.py`, `templates/__init__.py` e os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprints 4 a 6).
 
 ## Ambiente e comandos
 
@@ -90,7 +90,12 @@ Pontos centrais do `core`:
   `reset_settings_cache` e `reset_vault_clients`. Testes que leem `.env` fazem `chdir` para
   `tmp_path`.
 - Fixtures compartilhadas: `no_sleep` (substitui `time.sleep`), `read_log_lines`, `fake_hvac`
-  (classe `hvac.Client` simulada; o cliente é `fake_hvac.return_value`) e `projects_dir`.
+  (classe `hvac.Client` simulada; o cliente é `fake_hvac.return_value`), `projects_dir`,
+  `sample_csv` e `sample_pdf` (3 páginas, gerado com reportlab).
+- Bancos nos testes: SQLite e DuckDB reais em `tmp_path`, populados pelo próprio teste com o
+  driver. Para testar a conexão somente leitura, desative a validação com
+  `mocker.patch.object(database_utils, "_read_only_violation", return_value=None)`. O
+  PostgreSQL e o Denodo são simulados com `mocker.patch("psycopg2.connect")`.
 - Tempo simulado com `time_machine.travel(datetime(...).astimezone(), tick=False)`; datetimes
   ingênuos são tratados como UTC. Na rotação de logs, alinhe a data de criação do arquivo ao
   relógio simulado (`_align_file_times` em `test_logger.py`).

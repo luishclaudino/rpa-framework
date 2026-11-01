@@ -5038,15 +5038,15 @@ flowchart LR
 
 - **Objetivo:** bancos, e-mail, imagens e PDF.
 - **Tarefas (nesta ordem):**
-  - [ ] `utils/database_utils.py` (8.15, somente leitura — P-24) + testes unitários (SQLite e DuckDB reais, incluindo bloqueio de escrita) + `test_postgres_live.py` e `test_denodo_live.py`.
-  - [ ] `utils/email_utils.py` (8.16) + testes unitários + `test_email_live.py`.
-  - [ ] `utils/images_utils.py` (8.17) + testes.
-  - [ ] `utils/pdf_utils.py` (8.18) + testes.
+  - [x] `utils/database_utils.py` (8.15, somente leitura — P-24) + testes unitários (SQLite e DuckDB reais, incluindo bloqueio de escrita) + `test_postgres_live.py` e `test_denodo_live.py`. *(testes de integração criados; ainda não executados contra servidores reais — `docs/DESVIOS.md`, Sprint 3)*
+  - [x] `utils/email_utils.py` (8.16) + testes unitários + `test_email_live.py`. *(teste de integração criado; ainda não executado contra servidores reais)*
+  - [x] `utils/images_utils.py` (8.17) + testes.
+  - [x] `utils/pdf_utils.py` (8.18) + testes.
 - **Requisitos cobertos:** RF-043 a RF-047, RNF-010 (bancos somente leitura).
 - **DoD da sprint:**
-  - [ ] DoD global; cobertura de `rpa_3003/utils/*` ≥ 85%.
-  - [ ] Testes de bloqueio de escrita do RF-043 passando (validação de instruções e conexão somente leitura).
-  - [ ] `test_denodo_live.py` executado ao menos uma vez contra o Denodo corporativo; resultado registrado, com a confirmação da equipe de dados de que o usuário do robô só tem privilégio de consulta (riscos R-11 e R-20).
+  - [x] DoD global; cobertura de `rpa_3003/utils/*` ≥ 85%. *(98%; decisões de interpretação e o ponto de atenção D-06 em `docs/DESVIOS.md`, Sprint 3)*
+  - [x] Testes de bloqueio de escrita do RF-043 passando (validação de instruções e conexão somente leitura).
+  - [ ] `test_denodo_live.py` executado ao menos uma vez contra o Denodo corporativo; resultado registrado, com a confirmação da equipe de dados de que o usuário do robô só tem privilégio de consulta (riscos R-11 e R-20). *(pendente: requer acesso ao Denodo corporativo e as variáveis `RPA3003_TEST_DENODO_*`)*
 
 #### Sprint 4 — Bots
 

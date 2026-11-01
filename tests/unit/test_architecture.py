@@ -262,6 +262,21 @@ def test_package_imports_do_not_load_heavy_modules() -> None:
     assert heavy == []
 
 
+@pytest.mark.parametrize(
+    ("module_name", "drivers"),
+    [
+        ("rpa_3003.utils.database_utils", ("psycopg2", "duckdb")),
+        ("rpa_3003.utils.email_utils", ("win32com", "pywintypes")),
+        ("rpa_3003.utils.pdf_utils", ("pypdf", "pdfplumber", "pdfminer", "reportlab")),
+    ],
+)
+def test_utils_modules_import_drivers_lazily(module_name: str, drivers: tuple[str, ...]) -> None:
+    """RNF-004/RNF-017: drivers pesados só são importados quando a função é usada."""
+    loaded = _modules_loaded_by(f"import {module_name}")
+    assert module_name in loaded
+    assert sorted(name for name in loaded if any(_is_within(name, d) for d in drivers)) == []
+
+
 def _docstring_nodes(tree: ast.Module) -> set[int]:
     """Identificadores (`id`) dos nós de docstring de módulo, classes e funções."""
     owners = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
