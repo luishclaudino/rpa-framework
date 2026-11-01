@@ -368,6 +368,18 @@ def test_path_portability_checker(tmp_path: Path, source: str, expected: int) ->
     assert len(_path_portability_violations(SourceModule("amostra", path))) == expected
 
 
+def test_cli_import_is_light() -> None:
+    """RNF-004: o CLI não carrega dependências pesadas, `vault` nem `psutil` ao ser importado;
+    o `psutil` só é importado ao encerrar uma árvore de processos (RF-052)."""
+    loaded = _modules_loaded_by("import rpa_3003.cli, rpa_3003.__main__")
+    forbidden = (*HEAVY_MODULES, VAULT, BOTS, UTILS, "hvac", "psutil")
+    unexpected = sorted(
+        name for name in loaded if any(_is_within(name, prefix) for prefix in forbidden)
+    )
+    assert unexpected == []
+    assert {CLI, TEMPLATES, WORKFLOW} <= loaded
+
+
 def test_core_package_does_not_load_vault_or_workflow() -> None:
     """Seção 8.3: ``rpa_3003.core`` não importa ``vault`` e ``workflow`` (nem hvac e filelock)."""
     loaded = _modules_loaded_by("import rpa_3003.core")

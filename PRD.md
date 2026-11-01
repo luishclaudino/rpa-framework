@@ -5066,13 +5066,13 @@ flowchart LR
 
 - **Objetivo:** interface de linha de comando e motor de templates de que `create` depende.
 - **Tarefas (nesta ordem):**
-  - [ ] `templates/__init__.py` (8.23) + `test_templates.py` usando um template mínimo criado em `tmp_path` com `template.toml` (o conteúdo do `example` vem na Sprint 6).
-  - [ ] `cli.py` (8.2 e seção 9) + `test_cli.py`.
-  - [ ] `rpa_3003/__main__.py`.
+  - [x] `templates/__init__.py` (8.23) + `test_templates.py` usando um template mínimo criado em `tmp_path` com `template.toml` (o conteúdo do `example` vem na Sprint 6).
+  - [x] `cli.py` (8.2 e seção 9) + `test_cli.py`.
+  - [x] `rpa_3003/__main__.py`.
 - **Requisitos cobertos:** RF-048 a RF-052, RF-054, RF-055.
 - **DoD da sprint:**
-  - [ ] DoD global; cobertura de `cli.py` ≥ 85% e de `templates/*` ≥ 90%.
-  - [ ] `rpa3003 --version`, `rpa3003 templates` e `rpa3003 list` funcionam no terminal.
+  - [x] DoD global; cobertura de `cli.py` ≥ 85% e de `templates/*` ≥ 90%. *(`cli.py` 100%, `templates/*` 99%; desvios D-09 e D-10 e decisões de interpretação em `docs/DESVIOS.md`, Sprint 5)*
+  - [x] `rpa3003 --version`, `rpa3003 templates` e `rpa3003 list` funcionam no terminal. *(PowerShell, 01/11/2026; `rpa3003 --help` em 0,47 s)*
 
 #### Sprint 6 — Templates
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Framework RPA `rpa_3003` (Python 3.12+, alvo Windows). O `PRD.md` é a especificação **normativa** e o código é implementado sprint a sprint (seção 13.3 do PRD). Antes de mexer em um módulo, leia a subseção correspondente da seção 8 (contratos), além das seções 5, 10 e 11 quando aplicável.
 
-Estado atual: Sprints 0 a 4 concluídas (`rpa_3003/core/*`, `rpa_3003/utils/*` e `rpa_3003/bots/*` completos). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais. Continuam pendentes o DoD do Denodo e o do modo IE, que não está habilitado na máquina de desenvolvimento (`docs/DESVIOS.md`, Sprint 3 e D-08). `cli.py`, `__main__.py`, `templates/__init__.py` e os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprints 5 e 6).
+Estado atual: Sprints 0 a 5 concluídas (`core/*`, `utils/*`, `bots/*`, `cli.py`, `__main__.py` e o motor `templates/__init__.py` completos). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais. Continuam pendentes o DoD do Denodo e o do modo IE, que não está habilitado na máquina de desenvolvimento (`docs/DESVIOS.md`, Sprint 3 e D-08). Os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprint 6). Por isso, `rpa3003 create` com o `example` gera os arquivos, mas retorna 3, porque `validate` não encontra `class Step`.
 
 ## Ambiente e comandos
 
@@ -109,3 +109,10 @@ Pontos centrais do `core`:
   relógio simulado (`_align_file_times` em `test_logger.py`).
 - `test_workflow.py` monta projetos em `tmp_path` e restaura cwd, `sys.path` e `sys.modules`
   (`workflows*`, `global_vars`) após cada teste.
+- CLI e templates nos testes: `test_cli.py` e `test_templates.py` trocam
+  `rpa_3003.templates.templates_root` por uma pasta em `tmp_path` (fixture `template_root`).
+  `test_cli.py` faz `chdir` para `tmp_path` (o `./projects` padrão é a fixture `projects_dir`) e
+  simula `subprocess.Popen` nos testes de `run`. O `main()` chama `setup_logger(logs_dir=None)`,
+  e o log sai em `capsys.readouterr().err`. `--help` e `--version` encerram com `SystemExit`.
+  O teste do RF-052 roda um projeto real com `--timeout 2`. No Windows, o `python.exe` do `.venv`
+  é um lançador que cria o interpretador de `.python/` como processo filho.

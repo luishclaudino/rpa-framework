@@ -434,3 +434,115 @@ e que acessar `rpa_3003.bots.Browser` carrega o selenium sem as bibliotecas de d
     `kill_process`. O teste é pulado quando já existe um `notepad.exe` aberto, e a área de
     transferência do usuário é restaurada ao final.
   - Resultado em 01/11/2026 (Windows 11 pt-BR): `pytest -m gui` com 3 testes passando.
+
+## Sprint 5 — CLI
+
+As regras de `tests/unit/test_architecture.py` não mudaram: a seção 7.2 já permite que `cli.py`
+importe `core`, `templates`, `_version` e `psutil`, e que `templates/__init__.py` importe `core`
+(exceto `workflow` e `vault`) e `_version`. Um caso novo verifica que importar `rpa_3003.cli` e
+`rpa_3003.__main__` não carrega `psutil`, `vault`, `bots`, `utils` nem dependências pesadas
+(RNF-004). O `psutil` só é importado em `kill_process_tree`. Medido em 01/11/2026:
+`rpa3003 --help` em 0,47 s (limite de 1,5 s).
+
+### D-09 — `rpa3003 run` sem `--env` resolve o ambiente e o repassa ao filho
+
+- **Referência:** seção 9.4.2 (passo 2), seção 9.6 e contratos de `build_run_command` e
+  `build_child_env` (seção 8.2).
+- **Desvio:** sem `--env`, o CLI resolve o ambiente pela mesma precedência do filho (RF-010):
+  `RPA3003_ENV` do ambiente, depois o `.env` **do projeto**, depois `dev`. Para isso usa
+  `load_settings(env_file=<projeto>/.env)`, como faz `bootstrap()`. O valor resolvido vai ao filho
+  em `--env` e em `RPA3003_ENV`. A seção 9.6 diz que `RPA3003_ENV` só é injetada quando `--env` é
+  informado.
+- **Justificativa:** as assinaturas normativas `build_run_command(paths, env: Environment, ...)`
+  (que sempre inclui `--env env.value`) e `build_child_env(env: Environment)` exigem um ambiente.
+  Resolver com a mesma precedência do filho cumpre o RF-010 sem mudar os contratos. Assim, o log
+  `Executando projeto | ... | ambiente=<env>` mostra o ambiente real. O `.env` do diretório atual
+  do CLI continua valendo para `RPA3003_PROJECTS_DIR` e `RPA3003_RUN_TIMEOUT`, mas não para o
+  ambiente, porque o filho não o lê.
+
+### D-10 — Nomes de dispositivo do Windows recusados como nome de projeto
+
+- **Referência:** `validate_project_name` (seção 8.23) e RF-048.
+- **Desvio:** além de `PROJECT_NAME_PATTERN`, `validate_project_name` recusa `con`, `prn`, `aux`,
+  `nul`, `com1` a `com9` e `lpt1` a `lpt9` com `InvalidProjectNameError` (código 2).
+- **Justificativa:** esses nomes casam com a expressão regular, mas são nomes reservados de
+  dispositivo no Windows (RNF-002). Pastas com esses nomes não são criadas, ou ficam inacessíveis
+  pelas ferramentas comuns. O erro sairia como `OSError` durante a renomeação, sem uma mensagem
+  útil.
+
+### Decisões de implementação (sem alteração de contrato)
+
+- **Templates (`templates/__init__.py`):**
+  - O nome do template é o nome da pasta. A chave `name` do `template.toml` precisa ser igual a
+    ele; se for diferente, `TemplateRenderError`. Com isso, `--template web_basico` sempre aponta
+    para `templates/web_basico/`.
+  - As quatro chaves (`name`, `description`, `version`, `ensure_dirs`) são obrigatórias. Os textos
+    não podem ser vazios. Cada entrada de `ensure_dirs` deve ser um caminho relativo no formato
+    POSIX, sem `..`, drive nem `\`, para que um template não crie pastas fora do projeto.
+  - `get_template` lê só o `template.toml` do template pedido. Um template quebrado não impede o
+    uso dos outros, mas faz `list_templates` (e `rpa3003 templates`) falhar com o nome dele.
+  - A renderização lê e grava bytes. Os `.tpl` são decodificados em UTF-8, e as quebras de linha
+    do arquivo-fonte são preservadas (CRLF ou LF), sem a conversão do modo texto. Um `.tpl` fora
+    de UTF-8 gera `TemplateRenderError`.
+  - O prefixo `dot_` também vale para pastas (`dot_config/` vira `.config/`). Nome de saída vazio,
+    `.` ou `..` (ex.: arquivo `dot_`) e dois arquivos com o mesmo destino (ex.: `a.txt` e
+    `a.txt.tpl`) geram `TemplateRenderError`.
+  - Marcador `$` inválido (`ValueError` do `substitute`) gera `TemplateRenderError` com `arquivo`,
+    `variavel` (o trecho a partir do `$`) e `linha`.
+  - Um `.gitkeep` que já vem do template não é sobrescrito.
+  - Em `build_context`, o autor passa por uma limpeza: caracteres não imprimíveis viram espaço,
+    `\` vira `/` e `"` vira `'`. Ele é inserido em docstrings dos `.py` gerados, e um autor como
+    `DOMINIO\usuario` geraria `\u...`, um erro de sintaxe. Autor vazio usa `default_user()`.
+  - Em `create_project`, com `--force` o projeto existente só é renomeado para backup **depois**
+    que a renderização na pasta temporária termina. Se a renderização falhar, o projeto antigo
+    fica intacto. Se a renomeação final falhar, o backup volta ao nome original; se isso também
+    falhar, o framework registra um `WARNING`. A seção 8.23 lista o backup antes da renderização,
+    mas essa ordem deixaria o projeto fora do lugar após uma falha.
+  - Falhas de leitura, gravação ou renomeação viram `TemplateRenderError`, e a falha ao criar a
+    pasta de projetos vira `ConfigurationError` (código 3 nos dois casos). `KeyboardInterrupt`
+    também remove a pasta temporária antes de propagar.
+  - Logs adicionais: `DEBUG` `Template renderizado | template=... | destino=... | arquivos=...` e
+    `INFO` `Projeto existente renomeado | nome=... | backup=...`.
+- **CLI (`cli.py`):**
+  - A ajuda e os erros de uso estão em pt-BR. O framework usa uma subclasse privada de
+    `ArgumentParser`, herdada pelos subcomandos, com `uso:`, `argumentos`, `opções`, `comandos`,
+    `-h/--help` e `rpa3003: erro: ...` (código 2). Os metavars seguem a seção 9 (`CAMINHO`, `NOME`,
+    `USUARIO`, `NIVEL`, `SEGUNDOS`). As frases internas do argparse (ex.: "invalid choice",
+    "the following arguments are required") continuam em inglês, porque a biblioteca padrão não
+    traz tradução.
+  - `LOG_LEVELS` é público, como na estrutura de referência da seção 9.7.
+  - `RPAError` capturado em `main` vira log `ERROR` com `str(exc)`, que inclui os `details` (ex.:
+    `disponiveis=[...]` em projeto ou template inexistente).
+  - Sem subcomando, a ajuda vai para `stderr` (é erro de uso, código 2). Os problemas de estrutura
+    em `run` e `create` vão para `stderr`. Em `validate`, a lista de problemas é o resultado do
+    comando e vai para `stdout`.
+  - `--timeout` menor ou igual a zero registra `ERROR` e retorna 2, porque nenhuma exceção do
+    framework tem código 2 com esse significado.
+  - `create` com `--projects-dir` repete a opção no passo 3 do resumo (`Execute: rpa3003 run
+    <nome> --env dev --projects-dir "<caminho>"`), para que o comando sugerido funcione.
+  - Argumentos após `--` só são usados por `run`. Nos demais comandos, são ignorados.
+  - No Ctrl+C, `kill_process_tree` só é chamado se o filho continuar ativo depois da espera de
+    `CHILD_WAIT_ON_INTERRUPT`. Se o filho já terminou, os netos dele não podem mais ser
+    localizados pela árvore. Além disso, o PID de um processo já coletado pode ser reutilizado por
+    outro processo, que seria encerrado por engano. Um segundo Ctrl+C durante a espera não
+    interrompe o encerramento.
+  - `kill_process_tree` termina primeiro os descendentes e depois a raiz, espera
+    `grace_seconds`, chama `kill()` nos remanescentes e espera de novo. Processos que continuam
+    ativos ou sem permissão geram `WARNING`.
+  - Falha ao iniciar o subprocesso (`OSError` do `Popen`) vira `WorkflowError` (código 1).
+  - Log `Executando projeto | ... | timeout=sem limite` quando não há tempo limite (ou
+    `timeout=<n>s`). O tempo limite excedido registra `Tempo limite excedido | timeout=<n>s |
+    pid=<pid>`.
+- **Template `example` antes da Sprint 6:** os `.tpl` ainda só têm docstrings, então
+  `rpa3003 create` gera os arquivos e retorna 3, porque `validate` não encontra `class Step` nos
+  steps (passo 4 da seção 9.4.1). Os testes da Sprint 5 usam templates mínimos em `tmp_path`.
+- **Testes:**
+  - `test_templates.py` e `test_cli.py` substituem `rpa_3003.templates.templates_root` por uma
+    pasta em `tmp_path` (fixture `template_root`). Os testes de `run` simulam
+    `subprocess.Popen`.
+  - O critério do RF-052 roda de verdade em `test_run_timeout_kills_real_project_tree`. Um
+    projeto com `bootstrap`/`WorkflowRunner` tem um step que inicia um processo neto e dorme 60 s.
+    Com `--timeout 2`, o CLI retorna 5 em até 10 s, e o `psutil` confirma que o `main.py` e o neto
+    foram encerrados. No `.venv` do Windows, `python.exe` é um lançador que cria o interpretador
+    como processo filho, então a árvore real tem um nível a mais por processo Python, e
+    `kill_process_tree` a encerra inteira.
