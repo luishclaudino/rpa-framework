@@ -1,22 +1,37 @@
-"""Testes de `rpa_3003.templates` (RF-048, RF-054, RF-055, seção 8.23).
+"""Testes de `rpa_3003.templates` e do template `example` (RF-012, RF-025, RF-048, RF-053 a
+RF-055, seções 8.23 e 11).
 
-Usam templates mínimos criados em `tmp_path`, apontados por `templates_root` (substituído com
-`monkeypatch`). O conteúdo do template `example` é verificado na Sprint 6.
+Os testes do motor usam templates mínimos criados em `tmp_path`, apontados por `templates_root`
+(substituído com `monkeypatch`). Os testes do `example` usam o template do pacote e verificam os
+critérios da seção 11.12: os de `rpa3003 run` executam o projeto gerado em subprocesso real.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import importlib.util
+import json
 import py_compile
+import shutil
+import socket
+import subprocess
+import sys
 from collections.abc import Callable
 from datetime import datetime
 from importlib.resources.abc import Traversable
 from pathlib import Path
+from types import ModuleType
+from typing import Any, NoReturn
+from unittest.mock import MagicMock
 
 import pytest
 import time_machine
+from pytest_mock import MockerFixture
 
 from rpa_3003 import templates
 from rpa_3003._version import __version__
+from rpa_3003.cli import main
+from rpa_3003.core.config import Environment, validate_project_structure
 from rpa_3003.core.exceptions import (
     ConfigurationError,
     ExitCode,
@@ -25,6 +40,7 @@ from rpa_3003.core.exceptions import (
     TemplateNotFoundError,
     TemplateRenderError,
 )
+from rpa_3003.core.vault import Credentials
 from rpa_3003.templates import (
     DEFAULT_TEMPLATE,
     DOTFILE_PREFIX,
@@ -82,6 +98,32 @@ EXPECTED_OUTPUTS = {
     "logs/.gitkeep",
     "data/.gitkeep",
     "data/input/.gitkeep",
+}
+
+WORKSPACE_PYPROJECT = Path(__file__).resolve().parents[3] / "pyproject.toml"
+EXAMPLE_STEPS = ("step_setup_env", "step_execute_task", "step_wrapup_execution")
+EXAMPLE_TEMPLATE_FILES = {  # árvore da seção 11.1
+    "template.toml",
+    "main.py.tpl",
+    "global_vars.py.tpl",
+    "README.md.tpl",
+    "dot_env.example.tpl",
+    "workflows/__init__.py.tpl",
+    *(f"workflows/{env}/__init__.py.tpl" for env in ("dev", "prd")),
+    *(f"workflows/{env}/{step}.py.tpl" for env in ("dev", "prd") for step in EXAMPLE_STEPS),
+}
+EXAMPLE_OUTPUTS = {
+    "main.py",
+    "global_vars.py",
+    "README.md",
+    ".env.example",
+    "workflows/__init__.py",
+    *(f"workflows/{env}/__init__.py" for env in ("dev", "prd")),
+    *(f"workflows/{env}/{step}.py" for env in ("dev", "prd") for step in EXAMPLE_STEPS),
+    *(
+        f"{folder}/.gitkeep"
+        for folder in ("logs", "data", "data/input", "data/output", "data/images")
+    ),
 }
 
 TemplateWriter = Callable[..., Path]
@@ -778,3 +820,281 @@ def test_create_project_final_rename_failure_without_backup(
     with pytest.raises(TemplateRenderError, match="Falha ao mover"):
         create_project("emissao_notas", projects_dir, template="minimo")
     assert list(projects_dir.iterdir()) == []
+
+
+# --- Template example (seção 11) -------------------------------------------------------------
+
+
+@pytest.fixture
+def example_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Workspace com espaço e acentos no caminho (RNF-002), usado como diretório atual."""
+    workspace = tmp_path / "Automação RPA" / "rpa-framework"
+    workspace.mkdir(parents=True)
+    monkeypatch.chdir(workspace)
+    return workspace
+
+
+def _template_files(directory: Traversable, prefix: str = "") -> set[str]:
+    """Caminhos relativos dos arquivos de um template do pacote, sem `__pycache__`."""
+    found: set[str] = set()
+    for entry in directory.iterdir():
+        if entry.name == "__pycache__":
+            continue
+        if entry.is_dir():
+            found |= _template_files(entry, f"{prefix}{entry.name}/")
+        else:
+            found.add(f"{prefix}{entry.name}")
+    return found
+
+
+def _import_global_vars(project: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """Importa o `global_vars.py` do projeto gerado como módulo `global_vars`."""
+    spec = importlib.util.spec_from_file_location("global_vars", project / "global_vars.py")
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "global_vars", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _read_single_json(directory: Path, pattern: str) -> dict[str, Any]:
+    """Conteúdo do único arquivo JSON da pasta que casa com o padrão."""
+    [path] = sorted(directory.glob(pattern))
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return data
+
+
+def test_example_template_has_section_11_tree() -> None:
+    """RF-053/seção 11.1: o template example tem exatamente os arquivos da árvore normativa."""
+    assert _template_files(get_template("example").path) == EXAMPLE_TEMPLATE_FILES
+
+
+def test_example_prd_steps_mirror_dev() -> None:
+    """Seção 11.9: steps de prd iguais aos de dev, exceto '| dev)' → '| prd)' na primeira linha."""
+    workflows = get_template("example").path.joinpath("workflows")
+    for step in EXAMPLE_STEPS:
+        dev = workflows.joinpath("dev", f"{step}.py.tpl").read_text(encoding="utf-8")
+        prd = workflows.joinpath("prd", f"{step}.py.tpl").read_text(encoding="utf-8")
+        dev_first, dev_rest = dev.split("\n", 1)
+        prd_first, prd_rest = prd.split("\n", 1)
+        assert "(${project_name} | dev)." in dev_first
+        assert prd_first == dev_first.replace("| dev)", "| prd)")
+        assert prd_rest == dev_rest
+    for name in ("__init__.py.tpl", *(f"{step}.py.tpl" for step in EXAMPLE_STEPS)):
+        assert "workflows.dev" not in workflows.joinpath("prd", name).read_text(encoding="utf-8")
+
+
+def test_example_project_has_required_structure(sample_project: Path) -> None:
+    """RF-053/RF-001: o projeto gerado pelo example tem só os arquivos esperados e é válido."""
+    assert _relative_files(sample_project) == EXAMPLE_OUTPUTS
+    assert validate_project_structure(sample_project) == []
+
+
+def test_example_renders_all_variables(projects_dir: Path) -> None:
+    """Seção 11.12: nenhum arquivo gerado contém '${' e as variáveis aparecem substituídas."""
+    with time_machine.travel(FIXED_NOW.astimezone(), tick=False):
+        project = create_project("conciliacao_bancaria", projects_dir, author="ana.souza")
+    for path in project.rglob("*"):
+        if path.is_file():
+            assert "${" not in path.read_text(encoding="utf-8"), path
+    main_py = (project / "main.py").read_text(encoding="utf-8")
+    assert f"Gerado por rpa_3003 {__version__} em 2026-10-31 (autor: ana.souza)." in main_py
+    assert "rpa3003 run conciliacao_bancaria --env prd" in main_py
+    global_vars = (project / "global_vars.py").read_text(encoding="utf-8")
+    assert 'PROJECT_NAME: Final[str] = "conciliacao_bancaria"' in global_vars
+    assert 'PROJECT_TITLE: Final[str] = "Conciliacao Bancaria"' in global_vars
+    assert 'vault_secret_path="rpa/conciliacao_bancaria/prd/sistema"' in global_vars
+    readme = (project / "README.md").read_text(encoding="utf-8").splitlines()
+    assert readme[0] == "# Conciliacao Bancaria"
+    assert readme[2] == (
+        "Projeto RPA `conciliacao_bancaria` criado em 2026-10-31 por ana.souza com rpa_3003 "
+        f"{__version__}."
+    )
+    env_example = (project / ".env.example").read_text(encoding="utf-8")
+    assert (
+        "# RPA3003_VAULT_LOCAL_SECRETS_FILE=C:/rpa/segredos/conciliacao_bancaria.secrets.json\n"
+        in env_example
+    )
+    assert env_example.startswith("# Modelo de configuração do projeto conciliacao_bancaria.\n")
+    for env in ("dev", "prd"):
+        step = (project / "workflows" / env / "step_setup_env.py").read_text(encoding="utf-8")
+        assert step.startswith(
+            f'"""Step 1 - preparação do ambiente (conciliacao_bancaria | {env})."""\n'
+        )
+
+
+def test_example_python_files_compile_and_pass_ruff(sample_project: Path, tmp_path: Path) -> None:
+    """RF-053/seção 11.12: os .py gerados compilam e passam no `ruff check` do workspace, também
+    com um nome de projeto no tamanho máximo (50 caracteres, limite de linha do ruff)."""
+    longest = create_project("r" * 50, sample_project.parent, author="maria.fernanda.souza")
+    python_files = sorted([*sample_project.rglob("*.py"), *longest.rglob("*.py")])
+    assert len(python_files) == 22
+    for index, path in enumerate(python_files):
+        py_compile.compile(str(path), cfile=str(tmp_path / "pyc" / f"{index}.pyc"), doraise=True)
+    # Com --config, os padrões relativos do pyproject (ex.: per-file-ignores "projects/**")
+    # partem do diretório atual; por isso o ruff roda na pasta que contém projects/.
+    completed = subprocess.run(  # noqa: S603 - interpretador atual com argumentos fixos
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            "--no-cache",
+            "--config",
+            str(WORKSPACE_PYPROJECT),
+            "projects",
+        ],
+        cwd=sample_project.parent.parent,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_example_has_no_secret_findings(sample_project: Path) -> None:
+    """OBJ-05: o detect-secrets não aponta achados no template example nem no projeto gerado."""
+    from detect_secrets import SecretsCollection
+    from detect_secrets.settings import default_settings
+
+    template_dir = Path(templates.__file__).resolve().parent / "example"
+    findings = SecretsCollection()
+    with default_settings():
+        for root in (template_dir, sample_project):
+            for path in sorted(root.rglob("*")):
+                if path.is_file() and "__pycache__" not in path.parts:
+                    findings.scan_file(str(path))
+    assert findings.json() == {}
+
+
+def test_example_global_vars_import_has_no_io(
+    sample_project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """RF-012: importar global_vars com sockets bloqueados não tenta conexão nem usa o Vault."""
+    attempts: list[str] = []
+
+    def blocked(*args: object, **kwargs: object) -> NoReturn:
+        attempts.append(repr(args))
+        raise OSError("rede bloqueada pelo teste")
+
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    monkeypatch.setattr(socket.socket, "connect_ex", blocked)
+    monkeypatch.setattr(socket, "create_connection", blocked)
+    monkeypatch.setattr(socket, "getaddrinfo", blocked)
+    vault_factory = mocker.patch("rpa_3003.core.vault.get_vault_client")
+    gv = _import_global_vars(sample_project, monkeypatch)
+    assert attempts == []
+    vault_factory.assert_not_called()
+    assert set(gv.ENV_CONFIG) == set(Environment)
+    assert gv.PROJECT_NAME == "projeto_teste"
+    expected_paths = {
+        "PROJECT_ROOT": sample_project,
+        "DATA_DIR": sample_project / "data",
+        "INPUT_DIR": sample_project / "data" / "input",
+        "OUTPUT_DIR": sample_project / "data" / "output",
+        "IMAGES_DIR": sample_project / "data" / "images",
+        "LOGS_DIR": sample_project / "logs",
+    }
+    assert {name: getattr(gv, name) for name in expected_paths} == expected_paths
+    dev = gv.get_env_config(Environment.DEV)
+    prd = gv.get_env_config(Environment.PRD)
+    assert dev.vault_secret_path is None
+    assert prd.vault_secret_path == "rpa/projeto_teste/prd/sistema"  # noqa: S105 - caminho
+    assert not dev.browser_enabled
+    assert not prd.browser_enabled
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        dev.base_url = "https://outro.example.com"
+
+
+def test_example_get_credentials_dev_skips_vault(
+    sample_project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """RF-025: em dev (vault_secret_path=None) retorna None e nenhum cliente Vault é criado."""
+    vault_factory = mocker.patch("rpa_3003.core.vault.get_vault_client")
+    gv = _import_global_vars(sample_project, monkeypatch)
+    assert gv.get_credentials(Environment.DEV) is None
+    vault_factory.assert_not_called()
+
+
+def test_example_get_credentials_prd_reads_vault(
+    sample_project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_hvac: MagicMock,
+) -> None:
+    """RF-025: em prd, lê usuário e senha de rpa/<projeto>/prd/sistema no Vault simulado."""
+    monkeypatch.chdir(tmp_path)  # sem .env
+    monkeypatch.setenv("RPA3003_VAULT_URL", "https://vault.empresa.local:8200")
+    monkeypatch.setenv("RPA3003_VAULT_ROLE_ID", "role")
+    monkeypatch.setenv("RPA3003_VAULT_SECRET_ID", "secret-id")
+    gv = _import_global_vars(sample_project, monkeypatch)
+    credentials = gv.get_credentials(Environment.PRD)
+    assert isinstance(credentials, Credentials)
+    assert credentials.username == "robo.teste"
+    assert credentials.password.get_secret_value() == "S3nh@Forte"
+    fake_hvac.return_value.secrets.kv.v2.read_secret_version.assert_called_once_with(
+        path="rpa/projeto_teste/prd/sistema", mount_point="secret", raise_on_deleted_version=True
+    )
+
+
+def test_example_validate_returns_zero_after_create(
+    example_workspace: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Seção 11.12: `rpa3003 validate <nome>` retorna 0 imediatamente após `create`."""
+    assert main(["create", "projeto_teste"]) == ExitCode.SUCCESS
+    assert main(["validate", "projeto_teste"]) == ExitCode.SUCCESS
+    assert "Projeto 'projeto_teste' válido" in capsys.readouterr().out
+    assert (example_workspace / "projects" / "projeto_teste" / "main.py").is_file()
+
+
+def test_example_run_dev_succeeds_offline(example_workspace: Path, sample_csv: Path) -> None:
+    """RF-053/seção 11.12/RNF-002: `run --env dev` retorna 0 sem Vault, navegador ou rede e
+    gera relatorio_<run_id>.json e status_<run_id>.json em data/output."""
+    project = create_project("projeto_teste", example_workspace / "projects", author="ana.souza")
+    shutil.copyfile(sample_csv, project / "data" / "input" / "vendas.csv")
+    assert main(["run", "projeto_teste", "--env", "dev"]) == ExitCode.SUCCESS
+    output = project / "data" / "output"
+    status = _read_single_json(output, "status_*.json")
+    run_id = status["run_id"]
+    assert sorted(path.name for path in output.iterdir()) == [
+        ".gitkeep",
+        f"relatorio_{run_id}.json",
+        f"status_{run_id}.json",
+    ]
+    report = _read_single_json(output, "relatorio_*.json")
+    assert report == {
+        "run_id": run_id,
+        "ambiente": "dev",
+        "arquivos": 1,
+        "linhas": 3,
+        "detalhes": [{"arquivo": "vendas.csv", "linhas": 3}],
+    }
+    assert (status["projeto"], status["ambiente"]) == ("projeto_teste", "dev")
+    assert status["sucesso"] is True
+    assert status["erro"] is None
+    assert status["relatorio"] == report
+
+
+def test_example_run_prd_without_vault_returns_configuration_error(
+    example_workspace: Path,
+) -> None:
+    """Seção 11.12: `run --env prd` sem variáveis do Vault retorna 3, executa o wrapup e grava
+    status_<run_id>.json com "sucesso": false."""
+    project = create_project("projeto_teste", example_workspace / "projects", author="ana.souza")
+    assert main(["run", "projeto_teste", "--env", "prd"]) == ExitCode.CONFIGURATION_ERROR
+    output = project / "data" / "output"
+    status = _read_single_json(output, "status_*.json")
+    assert sorted(path.name for path in output.iterdir()) == [
+        ".gitkeep",
+        f"status_{status['run_id']}.json",
+    ]
+    assert (status["projeto"], status["ambiente"]) == ("projeto_teste", "prd")
+    assert status["sucesso"] is False
+    assert status["erro"].startswith(
+        "ConfigurationError: Parâmetros obrigatórios do Vault ausentes"
+    )
+    assert status["relatorio"] is None

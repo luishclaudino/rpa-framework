@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Framework RPA `rpa_3003` (Python 3.12+, alvo Windows). O `PRD.md` é a especificação **normativa** e o código é implementado sprint a sprint (seção 13.3 do PRD). Antes de mexer em um módulo, leia a subseção correspondente da seção 8 (contratos), além das seções 5, 10 e 11 quando aplicável.
 
-Estado atual: Sprints 0 a 5 concluídas (`core/*`, `utils/*`, `bots/*`, `cli.py`, `__main__.py` e o motor `templates/__init__.py` completos). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais. Continuam pendentes o DoD do Denodo e o do modo IE, que não está habilitado na máquina de desenvolvimento (`docs/DESVIOS.md`, Sprint 3 e D-08). Os `.tpl` de `templates/example/` ainda contêm apenas docstrings (Sprint 6). Por isso, `rpa3003 create` com o `example` gera os arquivos, mas retorna 3, porque `validate` não encontra `class Step`.
+Estado atual: Sprints 0 a 6 concluídas (`core/*`, `utils/*`, `bots/*`, `cli.py`, `__main__.py`, o motor `templates/__init__.py` e o template `example` completos). Falta a Sprint 7 (`tests/e2e/test_create_and_run.py`, README, guia do desenvolvedor e gate final). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais. Continuam pendentes o DoD do Denodo e o do modo IE, que não está habilitado na máquina de desenvolvimento (`docs/DESVIOS.md`, Sprint 3 e D-08).
 
 ## Ambiente e comandos
 
@@ -76,9 +76,14 @@ Pontos centrais do `core`:
   ou controle de transação em nenhuma engine. O controle do robô vai para arquivos em `data/`.
 - Ao concluir tarefas, marque os checkboxes da sprint em `PRD.md` (seção 13.3) e registre desvios
   ou decisões de interpretação em `docs/DESVIOS.md`.
-- Templates (Sprint 6) usam `string.Template` em arquivos `.tpl`, `$$` para `$` literal e
-  prefixo `dot_` para arquivos ocultos. `templates/example/` fica fora da cobertura e da
-  verificação de arquitetura.
+- Templates usam `string.Template` em arquivos `.tpl`, `$$` para `$` literal e prefixo `dot_`
+  para arquivos ocultos. `templates/example/` fica fora da cobertura e da verificação de
+  arquitetura. O conteúdo do `example` é o da seção 11 do PRD, byte a byte, exceto a linha
+  `# pragma: allowlist nextline secret` em `global_vars.py.tpl` (D-12). Os steps de `prd/` são
+  cópias dos de `dev/`, mudando só `| dev)` → `| prd)` na primeira linha (seção 11.9).
+- `setup.py` exclui `*.pyc` do `package_data` (D-11). Para conferir o wheel, use
+  `pip wheel . --no-deps -w <pasta>` (o `.venv` não tem setuptools; o build usa isolamento) e
+  apague a pasta `build/` que o pip deixa no repositório.
 
 ## Testes
 
@@ -116,3 +121,9 @@ Pontos centrais do `core`:
   e o log sai em `capsys.readouterr().err`. `--help` e `--version` encerram com `SystemExit`.
   O teste do RF-052 roda um projeto real com `--timeout 2`. No Windows, o `python.exe` do `.venv`
   é um lançador que cria o interpretador de `.python/` como processo filho.
+- Template `example` nos testes: a fixture `sample_project` cria `projeto_teste` com o template
+  do pacote. Os testes da seção 11.12 em `test_templates.py` rodam `rpa3003 run` de verdade
+  (subprocesso) num workspace com espaço e acentos no caminho. O `ruff check` dos arquivos gerados
+  usa `--config pyproject.toml` com cwd na pasta que contém `projects/`, porque o ruff resolve o
+  `per-file-ignores` `projects/**` a partir do diretório atual. O `global_vars.py` gerado é
+  importado com `importlib.util.spec_from_file_location` e `monkeypatch.setitem(sys.modules, ...)`.

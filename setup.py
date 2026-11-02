@@ -33,6 +33,8 @@ setup(
     packages=find_packages(include=["rpa_3003", "rpa_3003.*"]),
     include_package_data=True,
     package_data={"rpa_3003": ["py.typed", "templates/*/*", "templates/*/**/*"]},
+    # Os globs acima também casam com templates/__pycache__/*.pyc (docs/DESVIOS.md, D-11).
+    exclude_package_data={"rpa_3003": ["*.pyc"]},
     install_requires=read_requirements("requirements.txt"),
     extras_require={"dev": read_requirements("requirements-dev.txt")},
     entry_points={"console_scripts": ["rpa3003=rpa_3003.cli:main"]},

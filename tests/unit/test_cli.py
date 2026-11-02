@@ -2,7 +2,8 @@
 
 Os comandos são chamados por `main(argv)`. O `subprocess.Popen` é simulado nos testes de `run`,
 exceto nos que verificam o encerramento real da árvore de processos (RF-052). Os templates vêm
-de uma pasta em `tmp_path` apontada por `templates_root`; o conteúdo do `example` é da Sprint 6.
+de uma pasta em `tmp_path` apontada por `templates_root`; o `example` do pacote é testado em
+`test_templates.py`.
 """
 
 from __future__ import annotations

@@ -5078,14 +5078,14 @@ flowchart LR
 
 - **Objetivo:** template `example` completo.
 - **Tarefas:**
-  - [ ] Criar todos os arquivos da seção 11 em `rpa_3003/templates/example/`, reproduzindo integralmente o conteúdo normativo.
-  - [ ] Garantir a inclusão dos templates no pacote (`package_data` e `MANIFEST.in`) e verificar com `pip install .` em ambiente limpo.
-  - [ ] Estender `test_templates.py` com os critérios da seção 11.12 sobre o template `example`.
+  - [x] Criar todos os arquivos da seção 11 em `rpa_3003/templates/example/`, reproduzindo integralmente o conteúdo normativo. *(extraídos dos blocos da seção 11; única diferença: comentário `pragma: allowlist` em `global_vars.py.tpl` — `docs/DESVIOS.md`, D-12)*
+  - [x] Garantir a inclusão dos templates no pacote (`package_data` e `MANIFEST.in`) e verificar com `pip install .` em ambiente limpo. *(`exclude_package_data` para `*.pyc` — D-11)*
+  - [x] Estender `test_templates.py` com os critérios da seção 11.12 sobre o template `example`.
 - **Requisitos cobertos:** RF-053, RF-012, RF-025 (integração com `global_vars.py`).
 - **DoD da sprint:**
-  - [ ] DoD global.
-  - [ ] Critérios da seção 11.12 passando.
-  - [ ] Instalação não editável (`pip install .`) cria projetos corretamente.
+  - [x] DoD global. *(1.367 testes; `templates/*` 99%; `ruff`, `ruff format`, `mypy` e `detect-secrets` sem achados fora de `tests/`)*
+  - [x] Critérios da seção 11.12 passando. *(inclusive com o workspace em caminho com espaço e acentos, RNF-002)*
+  - [x] Instalação não editável (`pip install .`) cria projetos corretamente. *(venv novo com o Python 3.12.16, em 02/11/2026: `create`, `validate` e `run --env dev` = 0; `run --env prd` = 3)*
 
 #### Sprint 7 — Testes de integração, E2E, documentação e release
 

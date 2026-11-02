@@ -536,6 +536,7 @@ importe `core`, `templates`, `_version` e `psutil`, e que `templates/__init__.py
 - **Template `example` antes da Sprint 6:** os `.tpl` ainda só têm docstrings, então
   `rpa3003 create` gera os arquivos e retorna 3, porque `validate` não encontra `class Step` nos
   steps (passo 4 da seção 9.4.1). Os testes da Sprint 5 usam templates mínimos em `tmp_path`.
+  *(Resolvido na Sprint 6.)*
 - **Testes:**
   - `test_templates.py` e `test_cli.py` substituem `rpa_3003.templates.templates_root` por uma
     pasta em `tmp_path` (fixture `template_root`). Os testes de `run` simulam
@@ -546,3 +547,72 @@ importe `core`, `templates`, `_version` e `psutil`, e que `templates/__init__.py
     foram encerrados. No `.venv` do Windows, `python.exe` é um lançador que cria o interpretador
     como processo filho, então a árvore real tem um nível a mais por processo Python, e
     `kill_process_tree` a encerra inteira.
+
+## Sprint 6 — Templates
+
+As regras de `tests/unit/test_architecture.py` não mudaram: `templates/example/` continua fora da
+verificação de arquitetura e da cobertura. Os 14 arquivos da seção 11.1 foram extraídos por script
+dos blocos de código da seção 11 do `PRD.md` (os de `prd/` derivados dos de `dev/` pela regra da
+seção 11.9) e conferidos byte a byte. A única diferença é a do D-12.
+
+### D-11 — `exclude_package_data` para `*.pyc` no `setup.py`
+
+- **Referência:** seção 8.30 (`setup.py`) e tarefa da Sprint 6 ("Garantir a inclusão dos templates
+  no pacote").
+- **Desvio:** o `setup.py` recebeu `exclude_package_data={"rpa_3003": ["*.pyc"]}`.
+- **Justificativa:** o `pip install .` gera o wheel direto da árvore de fontes, sem passar pelo
+  sdist, e o `MANIFEST.in` (`global-exclude *.pyc __pycache__`) não se aplica. O glob
+  `templates/*/*` do `package_data` também casa com `templates/__pycache__/__init__.cpython-312.pyc`
+  da máquina de desenvolvimento, que entrava no wheel. Com a exclusão, o wheel tem só o
+  `__init__.py`, o `template.toml` e os 13 `.tpl` do `example`, e o resultado do build não depende
+  de os testes terem rodado antes.
+- **Aviso conhecido do setuptools (sem alteração):** o build exibe "Package would be ignored" para
+  `rpa_3003.templates.example` e subpastas, porque o Python as reconhece como pacotes de namespace.
+  O aviso é informativo, sem prazo de remoção, e os arquivos entram no wheel. Declarar essas pastas
+  como pacotes (`find_namespace_packages`) as tornaria importáveis, o que não faz sentido para
+  dados.
+
+### D-12 — Comentário `pragma: allowlist` em `global_vars.py.tpl`
+
+- **Referência:** seção 11.4 (conteúdo normativo de `global_vars.py.tpl`), OBJ-05, critério do
+  RNF sobre `detect-secrets` e item 4 do gate da seção 12.10 ("`detect-secrets` não aponta achados
+  fora de `tests/`").
+- **Desvio:** no `EnvConfig` do ambiente `prd`, antes do argumento `vault_secret_path`
+  (`rpa/${project_name}/prd/sistema`), foi incluída a linha
+  `# pragma: allowlist nextline secret (caminho do segredo no Vault, não é segredo)`. O comentário
+  também aparece no `global_vars.py` gerado.
+- **Justificativa:** as duas exigências do PRD conflitam. Em arquivos de tipo desconhecido (como
+  `.tpl`), o `KeywordDetector` do `detect-secrets` usa a regex genérica e aponta a palavra `secret`
+  em `vault_secret_path`; o `global_vars.py` gerado não é apontado, porque em `.py` o detector usa
+  outra regra. O pragma em linha própria mantém o gate sem achados sem mudar o comando da seção
+  12.9. No fim da linha ele passaria de 100 colunas com nomes de projeto longos (E501). A
+  alternativa seria manter o texto literal e tratar o achado como falso positivo num
+  `.secrets.baseline` auditado, o que muda o procedimento do gate.
+- **Verificação:** `test_example_has_no_secret_findings` roda o `detect-secrets` (API Python, com as
+  configurações padrão) sobre o template e sobre o projeto gerado e espera zero achados.
+
+### Decisões de implementação (sem alteração de contrato)
+
+- **Testes do `example` em `test_templates.py`:**
+  - Os critérios da seção 11.12 que executam `rpa3003 run` chamam `cli.main` e rodam o `main.py`
+    gerado em subprocesso real, como o teste do RF-052. Ficam com o marcador `unit`, como os demais
+    testes do arquivo. O E2E completo (log, `run_id` e tempo de bootstrap) é da Sprint 7.
+  - O workspace desses testes fica em `tmp_path/Automação RPA/rpa-framework`, com espaço e acentos
+    no caminho (RNF-002).
+  - O `ruff check` dos arquivos gerados usa `--config <workspace>/pyproject.toml` e roda na pasta
+    que contém `projects/`. Com `--config`, o ruff resolve os padrões relativos (como o
+    `per-file-ignores` `projects/**/global_vars.py`, que libera o S106 de `vault_secret_path`) a
+    partir do diretório atual; rodando de outra pasta, o S106 seria apontado. O teste inclui um
+    projeto com nome de 50 caracteres (máximo do `PROJECT_NAME_PATTERN`), em que a linha mais
+    longa gerada tem 99 colunas.
+  - RF-012: o `global_vars.py` gerado é importado com `socket.socket.connect`, `connect_ex`,
+    `socket.create_connection` e `socket.getaddrinfo` bloqueados e com `get_vault_client`
+    simulado. O teste verifica que nenhuma conexão foi tentada e que o Vault não foi usado.
+  - RF-025 em `prd`: AppRole com `fake_hvac`, lendo `rpa/projeto_teste/prd/sistema` no mount
+    `secret`.
+- **Fixture `sample_project`** (seção 12.5): entrou no `conftest.py`, criando `projeto_teste` com o
+  template `example` do pacote.
+- **Verificação da instalação não editável (02/11/2026):** venv novo com o CPython 3.12.16 de
+  `.python/` e `pip install .`. Fora do repositório, numa pasta com acentos, `rpa3003 templates`,
+  `create`, `validate` e `run --env dev` retornaram 0, e `run --env prd` retornou 3 com
+  `"sucesso": false` no status. Os templates foram lidos do `site-packages`.

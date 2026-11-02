@@ -76,6 +76,14 @@ def projects_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def sample_project(projects_dir: Path) -> Path:
+    """Projeto 'projeto_teste' criado com create_project a partir do template example."""
+    from rpa_3003.templates import create_project
+
+    return create_project("projeto_teste", projects_dir, author="ana.souza")
+
+
+@pytest.fixture
 def sample_csv(tmp_path: Path) -> Path:
     """CSV ';' em utf-8-sig com cabeçalho 'id;nome;valor' e 3 linhas acentuadas."""
     path = tmp_path / "amostra.csv"
