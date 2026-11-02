@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Framework RPA `rpa_3003` (Python 3.12+, alvo Windows). O `PRD.md` é a especificação **normativa** e o código é implementado sprint a sprint (seção 13.3 do PRD). Antes de mexer em um módulo, leia a subseção correspondente da seção 8 (contratos), além das seções 5, 10 e 11 quando aplicável.
 
-Estado atual: Sprints 0 a 6 concluídas (`core/*`, `utils/*`, `bots/*`, `cli.py`, `__main__.py`, o motor `templates/__init__.py` e o template `example` completos). Falta a Sprint 7 (`tests/e2e/test_create_and_run.py`, README, guia do desenvolvedor e gate final). Os testes de integração de banco e e-mail (`tests/integration/`) existem, mas ainda não rodaram contra servidores reais. Continuam pendentes o DoD do Denodo e o do modo IE, que não está habilitado na máquina de desenvolvimento (`docs/DESVIOS.md`, Sprint 3 e D-08).
+Estado atual: Sprints 0 a 7 implementadas (pacote completo, E2E, `README.md` e `docs/GUIA_DO_DESENVOLVEDOR.md`). Pendências que dependem de ambiente ou de pessoas (`docs/DESVIOS.md`, Sprint 7): `test_vault_live.py` contra o Vault de homologação; testes de banco e e-mail contra servidores reais; DoD do Denodo; teste do modo IE, que não está habilitado na máquina de desenvolvimento (D-08); validações manuais do README (OBJ-03) e do guia (RNF-019) por desenvolvedores externos.
 
 ## Ambiente e comandos
 
@@ -127,3 +127,13 @@ Pontos centrais do `core`:
   usa `--config pyproject.toml` com cwd na pasta que contém `projects/`, porque o ruff resolve o
   `per-file-ignores` `projects/**` a partir do diretório atual. O `global_vars.py` gerado é
   importado com `importlib.util.spec_from_file_location` e `monkeypatch.setitem(sys.modules, ...)`.
+- E2E (`tests/e2e/test_create_and_run.py`, marcador `e2e`): roda o console script `rpa3003` em
+  subprocesso real; as execuções `dev` e `prd` são fixtures de escopo `module`, com o ambiente
+  limpo de `RPA3003_*`/`VAULT_*` montado pelo próprio teste. O console do loguru sai colorido
+  mesmo em pipe: remova as sequências ANSI antes de aplicar a regex do formato.
+- Documentação: `tests/unit/test_docs.py` confere os títulos obrigatórios do README (8.32) e do
+  guia (8.33), os links relativos e âncoras (formato do GitHub) e a sintaxe dos blocos Python. O
+  `ruff format` também formata blocos Python em `.md` (só o `PRD.md` é excluído). Ao mudar um
+  roteiro de "Como estender" no guia, reaplique os roteiros e rode os itens 1 a 3 do gate.
+- `detect-secrets scan` só varre arquivos rastreados pelo git; arquivos novos precisam de
+  `git add` ou de serem passados na linha de comando.

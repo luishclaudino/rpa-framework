@@ -5091,20 +5091,20 @@ flowchart LR
 
 - **Objetivo:** consolidar qualidade e documentação.
 - **Tarefas:**
-  - [ ] `tests/e2e/test_create_and_run.py` conforme seção 12.7.
-  - [ ] `test_vault_live.py` contra Vault de homologação (AppRole e KV v2).
-  - [ ] Medições de desempenho do RNF-004 e OBJ-10 registradas no README.
-  - [ ] `README.md` com a estrutura obrigatória da seção 8.32.
-  - [ ] `docs/GUIA_DO_DESENVOLVEDOR.md` com a estrutura obrigatória da seção 8.33 (RNF-019), escrito depois do README e conferido contra o código final.
-  - [ ] Execução completa do gate de qualidade (seção 12.10).
-  - [ ] Validação manual do UC-01 por um desenvolvedor que não participou da implementação (OBJ-03, RNF-018).
-  - [ ] Validação manual do guia: um desenvolvedor que não participou da implementação implementa uma extensão do UC-05 seguindo apenas o guia (RNF-019).
+  - [x] `tests/e2e/test_create_and_run.py` conforme seção 12.7. *(8 testes em subprocesso real, workspace com espaço e acentos — `docs/DESVIOS.md`, Sprint 7)*
+  - [ ] `test_vault_live.py` contra Vault de homologação (AppRole e KV v2). *(arquivo criado, com variáveis opcionais de AppRole — D-13; pendente a execução contra o Vault de homologação)*
+  - [x] Medições de desempenho do RNF-004 e OBJ-10 registradas no README. *(02/11/2026; medianas de 0,29 s a 0,37 s)*
+  - [x] `README.md` com a estrutura obrigatória da seção 8.32. *(estrutura verificada por `tests/unit/test_docs.py`; início rápido executado no PowerShell)*
+  - [x] `docs/GUIA_DO_DESENVOLVEDOR.md` com a estrutura obrigatória da seção 8.33 (RNF-019), escrito depois do README e conferido contra o código final. *(os seis roteiros de extensão aplicados juntos passaram nos itens 1 a 3 do gate — `docs/DESVIOS.md`, Sprint 7)*
+  - [ ] Execução completa do gate de qualidade (seção 12.10). *(itens 1 a 4 aprovados em 02/11/2026; item 5: `browser` com Chrome e Edge e `gui` passando, modo IE pendente — D-08)*
+  - [ ] Validação manual do UC-01 por um desenvolvedor que não participou da implementação (OBJ-03, RNF-018). *(pendente)*
+  - [ ] Validação manual do guia: um desenvolvedor que não participou da implementação implementa uma extensão do UC-05 seguindo apenas o guia (RNF-019). *(pendente)*
 - **Entregáveis:** versão `1.0.0` pronta para uso pela equipe.
 - **DoD da sprint:**
-  - [ ] Todos os itens da seção 12.10 atendidos.
-  - [ ] Todos os RF com prioridade Must e Should implementados e testados; RF Could implementados ou registrados em `docs/DESVIOS.md`.
-  - [ ] Critérios de aceitação do RNF-018 e do RNF-019 verificados.
-  - [ ] Checklist da seção 13.5 completo.
+  - [ ] Todos os itens da seção 12.10 atendidos. *(falta o teste do modo IE — D-08)*
+  - [x] Todos os RF com prioridade Must e Should implementados e testados; RF Could implementados ou registrados em `docs/DESVIOS.md`. *(RF-001 a RF-055 citados nos docstrings dos testes; o único Could, RF-023, está implementado)*
+  - [ ] Critérios de aceitação do RNF-018 e do RNF-019 verificados. *(estrutura, links e exemplos verificados; faltam as validações por desenvolvedores externos)*
+  - [ ] Checklist da seção 13.5 completo. *(pendências em `docs/DESVIOS.md`, Sprint 7)*
 
 ### 13.4 Matriz sprint × requisitos
 
@@ -5121,14 +5121,14 @@ flowchart LR
 
 ### 13.5 Checklist final de aceitação do framework
 
-- [ ] Os 8 recursos do escopo estão implementados e rastreados na matriz da seção 5.1.
-- [ ] Todos os arquivos das seções 7.1 e 8 existem com as APIs especificadas.
-- [ ] O formato de log `[YYYY-MM-DD HH:MM:SS] [LEVEL] [nome_script] [linha] [user] mensagem` é verificado pelo teste E2E.
-- [ ] `rpa3003 create` e `rpa3003 run --env dev|prd` funcionam conforme a seção 9.
-- [ ] Credenciais de produção vêm exclusivamente do Vault.
-- [ ] Nenhuma API do framework grava em banco de dados, e os usuários de banco dos robôs têm somente privilégio de consulta (P-24).
-- [ ] Gate de qualidade (12.10) aprovado no Windows.
-- [ ] README (8.32) e guia do desenvolvedor (8.33) validados por desenvolvedores que não participaram da implementação.
+- [x] Os 8 recursos do escopo estão implementados e rastreados na matriz da seção 5.1.
+- [x] Todos os arquivos das seções 7.1 e 8 existem com as APIs especificadas.
+- [x] O formato de log `[YYYY-MM-DD HH:MM:SS] [LEVEL] [nome_script] [linha] [user] mensagem` é verificado pelo teste E2E.
+- [x] `rpa3003 create` e `rpa3003 run --env dev|prd` funcionam conforme a seção 9.
+- [x] Credenciais de produção vêm exclusivamente do Vault.
+- [ ] Nenhuma API do framework grava em banco de dados, e os usuários de banco dos robôs têm somente privilégio de consulta (P-24). *(API somente leitura verificada por testes; falta a confirmação das equipes de banco)*
+- [ ] Gate de qualidade (12.10) aprovado no Windows. *(falta o teste do modo IE — D-08)*
+- [ ] README (8.32) e guia do desenvolvedor (8.33) validados por desenvolvedores que não participaram da implementação. *(pendente)*
 
 ---
 

@@ -616,3 +616,112 @@ seção 11.9) e conferidos byte a byte. A única diferença é a do D-12.
   `.python/` e `pip install .`. Fora do repositório, numa pasta com acentos, `rpa3003 templates`,
   `create`, `validate` e `run --env dev` retornaram 0, e `run --env prd` retornou 3 com
   `"sucesso": false` no status. Os templates foram lidos do `site-packages`.
+
+## Sprint 7 — Testes de integração, E2E, documentação e release
+
+Nenhum módulo do pacote mudou nesta sprint, e as regras de `tests/unit/test_architecture.py`
+continuam as mesmas. Entraram `tests/e2e/test_create_and_run.py`,
+`tests/integration/test_vault_live.py`, `tests/unit/test_docs.py`, o README completo (seção 8.32)
+e `docs/GUIA_DO_DESENVOLVEDOR.md` (seção 8.33).
+
+### D-13 — Variáveis opcionais do `test_vault_live.py`
+
+- **Referência:** seção 12.4 (`RPA3003_TEST_VAULT_URL`, `RPA3003_TEST_VAULT_TOKEN` e
+  `RPA3003_TEST_VAULT_PATH`) e tarefa da Sprint 7 ("`test_vault_live.py` contra Vault de
+  homologação (AppRole e KV v2)").
+- **Desvio:** além das três variáveis da seção 12.4, o teste aceita `RPA3003_TEST_VAULT_ROLE_ID`
+  e `RPA3003_TEST_VAULT_SECRET_ID`, que habilitam os testes de AppRole, e
+  `RPA3003_TEST_VAULT_MOUNT_POINT` (padrão `secret`). Sem as variáveis de AppRole, só esses testes
+  são pulados; os de token continuam rodando.
+- **Justificativa:** a seção 12.4 prevê só autenticação por token, mas a tarefa exige validar o
+  AppRole, que precisa de `role_id` e `secret_id`. O ponto de montagem do Vault de homologação
+  pode ser diferente do padrão `secret` (P-07).
+- **Uso:** o segredo em `RPA3003_TEST_VAULT_PATH` (KV v2) deve ter as chaves `username` e
+  `password`. A verificação TLS continua ativa; para uma CA corporativa, defina
+  `REQUESTS_CA_BUNDLE`.
+
+### Pendências
+
+O resultado de cada item deve ser registrado aqui, com data, ambiente e responsável.
+
+- **Vault de homologação:** `test_vault_live.py` não foi executado contra o Vault de homologação,
+  sem acesso nesta máquina. Só `test_unreachable_vault_retries_with_backoff`, que não depende de
+  servidor, rodou e passou. O ruff e a sintaxe do arquivo foram verificados.
+- **Validação do UC-01 (OBJ-03, RNF-018):** um desenvolvedor que não participou da
+  implementação executa o UC-01 seguindo só o README, em até 15 minutos.
+- **Validação do guia (RNF-019):** um desenvolvedor que não participou da implementação
+  implementa uma extensão do UC-05 seguindo só o guia, com teste unitário e os itens 1 a 3 do
+  gate aprovados, em até 60 minutos.
+- **Modo IE (D-08) e Denodo (Sprint 3):** continuam pendentes. Sem o modo IE, o item 5 do gate
+  não está completo.
+- **RNF-001 e RNF-002:** a suíte rodou só no Windows 11 com Python 3.12.16 (e com o 3.14.3 na
+  Sprint 0). Python 3.13 e Windows Server 2022 não foram testados.
+- **P-24 (checklist da seção 13.5):** falta a confirmação das equipes de banco de que os
+  usuários dos robôs só têm privilégio de consulta.
+
+### Decisões de implementação (sem alteração de contrato)
+
+- **E2E (`tests/e2e/test_create_and_run.py`):**
+  - Os comandos rodam como o usuário os digita: console script `rpa3003` do `.venv` (ou
+    `python -m rpa_3003`, se o script não existir), cada um em processo próprio. O workspace fica
+    em `<tmp>/Automação RPA/rpa-framework`, com os mesmos nomes do critério do RNF-002
+    (`C:\Automação RPA\rpa-framework`), sem gravar na raiz de `C:`. O ambiente dos subprocessos
+    não tem `RPA3003_*` nem `VAULT_*`.
+  - As execuções `dev` e `prd` acontecem uma vez por módulo (fixtures de escopo `module`) e são
+    verificadas por vários testes.
+  - OBJ-04: além do arquivo de log, são verificadas as linhas de console de `create`, `validate`
+    e `run`. O loguru colore o console mesmo com o `stderr` em pipe, o que a seção 10.1 permite;
+    as sequências ANSI são removidas antes da regex. Linhas que não começam com `[` e dígito
+    (traceback, seção 10.4) só são aceitas depois de uma entrada `ERROR`.
+  - OBJ-10: o log tem resolução de 1 s, grossa demais para medir um limite de 2 s. O teste
+    executa o `main.py` com o mesmo comando e ambiente do `rpa3003 run` (`build_run_command` e
+    `build_child_env`) e mede a chegada da linha `>>> Iniciando step` no `stderr`, um limite
+    superior do instante real. A linha do arquivo de log confirma o instante dentro da resolução
+    de 1 s.
+  - RNF-004: `import rpa_3003` e `rpa3003 --help` usam a melhor de três execuções, para descontar
+    oscilações da máquina. O `create` usa a própria execução do fluxo. Os tempos incluem o
+    lançador `python.exe` do `.venv`.
+- **Medições do README (RNF-004 e OBJ-10):** 10 execuções de cada comando em 02/11/2026, num
+  Intel Core i5-10400 com 16 GB de RAM e SSD (Windows 11, Python 3.12.16). A máquina de
+  referência do PRD (4 vCPU, 8 GB) não estava disponível. As medianas ficaram entre 0,29 s e
+  0,37 s.
+- **`tests/unit/test_docs.py`:** verifica a parte estrutural do RNF-018 e do RNF-019: títulos de
+  nível 2 do README (8.32) e do guia (8.33), na ordem; link da `Visão geral` do README para o
+  guia; um roteiro por ponto de extensão com arquivos, código, teste e comando de verificação;
+  links relativos para arquivos e títulos existentes (âncoras no formato do GitHub); e sintaxe
+  dos blocos Python. A validação por desenvolvedores externos continua manual (seção 12.1).
+- **Variáveis sem consumo automático nos bots:** `RPA3003_DEFAULT_BROWSER`,
+  `RPA3003_SCREENSHOT_ON_ERROR`, `RPA3003_DESKTOP_FAILSAFE` e `RPA3003_DESKTOP_CONFIDENCE` existem
+  em `FrameworkSettings` (seção 8.5), mas os construtores de `Browser` e `DesktopBot` mantêm os
+  padrões dos contratos (seções 8.21 e 8.22), e `BrowserOptions.from_settings(settings, browser)`
+  recebe o navegador explicitamente. O step lê os valores em `ctx.settings` e os repassa, como
+  documenta o README (seção `Configuração`). Ligar os padrões dos construtores às settings
+  mudaria os contratos.
+- **Guia do desenvolvedor:**
+  - Os roteiros de navegador, banco, provedor de segredos e canal de e-mail criam um módulo novo
+    em `bots/` ou `utils/`, camadas já cobertas por `GROUP_RULES` e que podem importar as classes
+    base. O registro é feito por uma função `register_*`, não na importação do módulo: o
+    `test_browser_selenium.py` espera só `chrome`, `edge` e `edge_ie` na fábrica, e um registro
+    feito na importação valeria para toda a sessão de testes desde a coleta.
+  - O template de exemplo se chama `web`. Com até 8 caracteres, o nome não altera as colunas da
+    tabela de `rpa3003 templates` verificada em `test_cli.py`; o guia explica o ajuste para nomes
+    maiores.
+  - Verificação em 02/11/2026: um script extraiu do guia os 12 blocos marcados com
+    "Arquivo `...`" e aplicou os seis roteiros juntos, inclusive a cópia do `example` e as
+    edições em `utils/__init__.py` e `test_package.py`. Em seguida, rodou os itens 1 a 3 do gate
+    (1.411 testes, todos os limites de cobertura, `ruff check`, `ruff format --check` e `mypy`) e
+    desfez as mudanças. A primeira rodada apontou o `S105` do ruff numa constante chamada
+    `ENV_SECRET_PREFIX`, renomeada no guia para `ENV_VARIABLE_PREFIX`.
+  - O início rápido do README foi executado no Windows PowerShell 5.1, num workspace novo com
+    acentos no caminho: `create`, `validate` e `run` retornaram 0.
+- **Gate de qualidade (seção 12.10), em 02/11/2026, no Windows 11:**
+  1. `pytest`: 1.389 testes passando (39 desmarcados: `integration`, `gui` e `browser`).
+  2. Cobertura global de 98,6%; `core` 99%, `utils` 98%, `cli.py` 100%, `templates` 99% e
+     `bots` 99%.
+  3. `ruff check`, `ruff format --check` e `mypy` sem erros.
+  4. `detect-secrets` sem achados fora de `tests\`. O `scan` só considera arquivos rastreados
+     pelo git, então os arquivos novos da sprint foram varridos também de forma explícita, sem
+     achados.
+  5. `pytest -m browser`: 16 testes passando com Chrome e Edge, e o teste do modo IE pulado
+     (D-08). `pytest -m gui`: 3 testes passando com o Bloco de Notas. O item fica pendente até o
+     teste do modo IE passar.
